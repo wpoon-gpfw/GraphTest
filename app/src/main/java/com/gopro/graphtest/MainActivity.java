@@ -24,13 +24,16 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        randomData = new RandomData(-1.00F, 1.00F, 0.02F, 1.5F, 0.5F, 20);
+        randomData = new RandomData(-1.00F, 1.00F, 0.02F, 1.5F, 0.5F, 15);
 
         //initYVals(1F);
 
         chartView = (ChartView) findViewById(R.id.chartView);
         chartView.setXRange(DISPLAY_WINDOW);
         chartView.setXOffs(0);
+        chartView.setXDispScale(1F / SAMPLE_INTERVAL);
+        chartView.setYMin(-1F);
+        chartView.setYMax(1F);
         chartView.postDelayed(new Runnable() {
             @Override
             public void run() {

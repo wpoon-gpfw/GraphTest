@@ -105,11 +105,9 @@ public class DataView extends View {
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        //drawDivisions(canvas);
         canvas.scale(1, -1);
         canvas.translate(0, -height);
         canvas.drawLines(bufNext, 0, (xRange - 1) << 2, dataPaint);
-        canvas.setMatrix(null);
     }
 
     private int bufSel;

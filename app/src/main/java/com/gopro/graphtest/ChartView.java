@@ -9,6 +9,8 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.View;
 
+import java.text.DecimalFormat;
+
 public class ChartView extends View {
 
     private static final String TAG = "~CanvasView";
@@ -23,17 +25,20 @@ public class ChartView extends View {
     private Paint divisionPaint, divTextPaint;
     private float yMin, yMax, yRange;
     private int xRange, xOffs;
+    private float xDispScale;
     private DisplayMetrics displayMetrics;
     private int dvXOffs, dvYOffs;
     private int dvWidth, dvHeight;
     private int marginOffs;
     private Rect rect = new Rect();
+    private final DecimalFormat yValFormat = new DecimalFormat("0.0E0");
+    private final DecimalFormat xValFormat = new DecimalFormat("0.00E0");
 
     public ChartView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
         displayMetrics = context.getResources().getDisplayMetrics();
-        dvXOffs = dpToPx(40);
+        dvXOffs = dpToPx(60);
         dvYOffs = dpToPx(40);
         marginOffs = dpToPx(5);
 
@@ -69,6 +74,10 @@ public class ChartView extends View {
         this.xOffs = (xOffs < 0) ? 0 : xOffs;
     }
 
+    public void setXDispScale(float xDispScale) {
+        this.xDispScale = xDispScale;
+    }
+
     @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
@@ -85,6 +94,7 @@ public class ChartView extends View {
 
         drawDivisions(canvas);
         drawHorzDivText(canvas);
+        drawVertDivText(canvas);
     }
 
     private void drawDivisions(Canvas canvas) {
@@ -106,7 +116,7 @@ public class ChartView extends View {
         String text;
 
         /* Leftmost label */
-        text = Integer.toString(xOffs);
+        text = getHorzDivString(xOffs);
         divTextPaint.getTextBounds(text, 0, text.length(), rect);
         canvas.drawText(text,
                 dvXOffs + marginOffs,
@@ -114,7 +124,7 @@ public class ChartView extends View {
                 divTextPaint);
 
         for (int i = 1; i < NUM_HORZ_DIVISIONS; i++) {
-            text = Integer.toString(xOffs + (i * xRange) / NUM_HORZ_DIVISIONS);
+            text = getHorzDivString(xOffs + (i * xRange) / NUM_HORZ_DIVISIONS);
             pos = (i * dvWidth) / NUM_HORZ_DIVISIONS;
             divTextPaint.getTextBounds(text, 0, text.length(), rect);
             canvas.drawText(text,
@@ -124,7 +134,7 @@ public class ChartView extends View {
         }
 
         /* Rightmost label */
-        text = Integer.toString(xOffs + xRange);
+        text = getHorzDivString(xOffs + xRange);
         divTextPaint.getTextBounds(text, 0, text.length(), rect);
         canvas.drawText(text,
                 width - marginOffs - rect.width(),
@@ -132,34 +142,37 @@ public class ChartView extends View {
                 divTextPaint);
     }
 
+    private String getHorzDivString(float value) {
+        return xValFormat.format(value * xDispScale);
+    }
+
     private void drawVertDivText(Canvas canvas) {
         float pos;
         String text;
 
         /* Bottommost label */
-        text = Integer.toString(xOffs);
-        divTextPaint.getTextBounds(text, 0, text.length(), rect);
+        text = yValFormat.format(yMin);
         canvas.drawText(text,
-                dvXOffs + marginOffs,
-                dvHeight + rect.height() + marginOffs,
+                marginOffs,
+                height - dvYOffs - marginOffs,
                 divTextPaint);
 
-        for (int i = 1; i < NUM_HORZ_DIVISIONS; i++) {
-            text = Integer.toString(xOffs + (i * xRange) / NUM_HORZ_DIVISIONS);
-            pos = (i * dvWidth) / NUM_HORZ_DIVISIONS;
+        for (int i = 1; i < NUM_VERT_DIVISIONS; i++) {
+            text = yValFormat.format(yMin + (i * yRange) / NUM_VERT_DIVISIONS);
+            pos = (i * dvHeight) / NUM_VERT_DIVISIONS;
             divTextPaint.getTextBounds(text, 0, text.length(), rect);
             canvas.drawText(text,
-                    dvXOffs + pos - rect.width() / 2,
-                    dvHeight + rect.height() + marginOffs,
+                    marginOffs,
+                    height - dvYOffs - pos + rect.height() / 2,
                     divTextPaint);
         }
 
         /* Topmost label */
-        text = Integer.toString(xOffs + xRange);
+        text = yValFormat.format(yMax);
         divTextPaint.getTextBounds(text, 0, text.length(), rect);
         canvas.drawText(text,
-                width - marginOffs - rect.width(),
-                dvHeight + rect.height() + marginOffs,
+                marginOffs,
+                rect.height() + marginOffs,
                 divTextPaint);
     }
 
