@@ -89,7 +89,7 @@ public class DataView extends View {
         bufNext[ii++] = bufPrev[jj++];
         bufNext[ii++] = bufPrev[jj];
         bufNext[ii++] = xPts[xRangeMO];
-        bufNext[ii] = height - calcY(yVals[xOffs + xRangeMO]);
+        bufNext[ii] = calcY(yVals[xOffs + xRangeMO]);
 
         postInvalidate();
     }
@@ -106,14 +106,17 @@ public class DataView extends View {
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         //drawDivisions(canvas);
+        canvas.scale(1, -1);
+        canvas.translate(0, -height);
         canvas.drawLines(bufNext, 0, (xRange - 1) << 2, dataPaint);
+        canvas.setMatrix(null);
     }
 
     private int bufSel;
 
     public void update() {
         float x, y;
-        float yVal = 0;
+        float yVal;
         int j;
 
         bufPrev = points[bufSel];
@@ -121,14 +124,14 @@ public class DataView extends View {
         bufNext = points[bufSel];
 
         bufNext[0] = 0;
-        bufNext[1] = height - calcY(yVals[xOffs]);
+        bufNext[1] = calcY(yVals[xOffs]);
         j = 2;
         int xStop = xOffs + xRange;
         for (int i = xOffs + 1; i < xStop; i++) {
             yVal = calcY(yVals[i]);
             //Log.i(TAG, "yVals = " + yVal);
             x = xPts[i - xOffs];
-            y = height - yVal;
+            y = yVal;
             bufNext[j++] = x;
             bufNext[j++] = y;
             bufNext[j++] = x;
@@ -145,12 +148,12 @@ public class DataView extends View {
     private float calcY(float val) {
         float yOff = val - yMin;
         if (yOff < 0) yOff = 0;
-        return ((yOff/yRange) * height);
+        return ((yOff / yRange) * height);
     }
 
     private void calcXPts() {
         float xRangeMO = xRange - 1;
-        for (int i = 0; i < xRange ; i++) {
+        for (int i = 0; i < xRange; i++) {
             xPts[i] = (i * width) / xRangeMO;
             //Log.i(TAG, "xPts = " + xPts[i]);
         }

@@ -132,6 +132,37 @@ public class ChartView extends View {
                 divTextPaint);
     }
 
+    private void drawVertDivText(Canvas canvas) {
+        float pos;
+        String text;
+
+        /* Bottommost label */
+        text = Integer.toString(xOffs);
+        divTextPaint.getTextBounds(text, 0, text.length(), rect);
+        canvas.drawText(text,
+                dvXOffs + marginOffs,
+                dvHeight + rect.height() + marginOffs,
+                divTextPaint);
+
+        for (int i = 1; i < NUM_HORZ_DIVISIONS; i++) {
+            text = Integer.toString(xOffs + (i * xRange) / NUM_HORZ_DIVISIONS);
+            pos = (i * dvWidth) / NUM_HORZ_DIVISIONS;
+            divTextPaint.getTextBounds(text, 0, text.length(), rect);
+            canvas.drawText(text,
+                    dvXOffs + pos - rect.width() / 2,
+                    dvHeight + rect.height() + marginOffs,
+                    divTextPaint);
+        }
+
+        /* Topmost label */
+        text = Integer.toString(xOffs + xRange);
+        divTextPaint.getTextBounds(text, 0, text.length(), rect);
+        canvas.drawText(text,
+                width - marginOffs - rect.width(),
+                dvHeight + rect.height() + marginOffs,
+                divTextPaint);
+    }
+
     private int dpToPx(float dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, displayMetrics);
     }
