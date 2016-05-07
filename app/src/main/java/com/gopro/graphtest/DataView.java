@@ -4,7 +4,11 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.util.AttributeSet;
+import android.util.Log;
 import android.view.View;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class DataView extends View {
 
@@ -29,6 +33,7 @@ public class DataView extends View {
     private int xSize;
     private int xRange, xOffs, prevXRange, prevXOffs;
     private int lineEnable;
+    private ExecutorService lineRenderSvc;
 
     public DataView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -64,6 +69,24 @@ public class DataView extends View {
             if (((1 << i) & lineEnable) == 0) return;
             canvas.drawLines(bufNext[i], 0, numLines << 2, dataPaint[i]);
         }
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+        Log.i(TAG, "onAttachedToWindow: RAN!");
+        lineRenderSvc = Executors.newFixedThreadPool(2);
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        Log.i(TAG, "onDetachedFromWindow: RAN!");
+        lineRenderSvc.shutdown();
+    }
+
+    public void destroy() {
+        lineRenderSvc.shutdown();
     }
 
     public void enableLine(int lineNum, boolean enable) {
@@ -112,7 +135,7 @@ public class DataView extends View {
     public void update() {
         for (int i = 0; i < MAX_DATA_LINES; i++) {
             if (((1 << i) & lineEnable) == 0) return;
-            renderLine(i);
+            lineRenderSvc.execute(new LineRenderer(i));
         }
         postInvalidate();
     }
@@ -122,55 +145,64 @@ public class DataView extends View {
         update();
     }
 
-    private void renderLine(int lineNum) {
-        int j;
-        float x, y;
+    private class LineRenderer implements Runnable {
+        private final int lineNum;
 
-        bufPrev[lineNum] = points[lineNum][bufSel[lineNum]];
-        bufSel[lineNum] = bufSel[lineNum] ^ 0x1;
-        bufNext[lineNum] = points[lineNum][bufSel[lineNum]];
-
-        if (xOffs == prevXOffs + 1 && xRange == prevXRange) {
-            /* shift left all prev lines */
-            int xRangeMT = xRange - 2;
-            j = 0;
-            for (int i = 0; i < xRangeMT; i++) {
-                j = i << 2;
-                bufNext[lineNum][j+1] = bufPrev[lineNum][j+5];
-                bufNext[lineNum][j+3] = bufPrev[lineNum][j+7];
-            }
-
-            /* add new, last line */
-            j += 4;
-            bufNext[lineNum][j+1] = bufPrev[lineNum][j+3];
-            bufNext[lineNum][j+3] = calcY(lineNum, xOffs + xRangeMT + 1);
-        } else {
-            bufNext[lineNum][0] = 0;
-            bufNext[lineNum][1] = calcY(lineNum, xOffs);
-            j = 2;
-            int xStop = xOffs + xRange;
-            for (int i = xOffs + 1; i <= xStop; i++) {
-                if (i > xSize) break;
-                x = xPts[i - xOffs];
-                y = calcY(lineNum, i);
-                bufNext[lineNum][j++] = x;
-                bufNext[lineNum][j++] = y;
-                bufNext[lineNum][j++] = x;
-                bufNext[lineNum][j++] = y;
-            }
+        public LineRenderer(int lineNum) {
+            this.lineNum = lineNum;
         }
-        prevXOffs = xOffs;
-        prevXRange = xRange;
-    }
 
-    private float calcY(int lineNum, int idx) {
-        float val = yVals[lineNum][idx];
-        if (val > yMax[lineNum])
-            return height;
-        else if (val < yMin[lineNum])
-            return 0;
-        else
-            return (((val - yMin[lineNum]) / yRange[lineNum]) * height);
+        @Override
+        public void run() {
+            int j;
+            float x, y;
+
+            bufPrev[lineNum] = points[lineNum][bufSel[lineNum]];
+            bufSel[lineNum] = bufSel[lineNum] ^ 0x1;
+            bufNext[lineNum] = points[lineNum][bufSel[lineNum]];
+
+            if (xOffs == prevXOffs + 1 && xRange == prevXRange) {
+                /* shift left all prev lines */
+                int xRangeMT = xRange - 2;
+                j = 0;
+                for (int i = 0; i < xRangeMT; i++) {
+                    j = i << 2;
+                    bufNext[lineNum][j+1] = bufPrev[lineNum][j+5];
+                    bufNext[lineNum][j+3] = bufPrev[lineNum][j+7];
+                }
+
+                /* add new, last line */
+                j += 4;
+                bufNext[lineNum][j+1] = bufPrev[lineNum][j+3];
+                bufNext[lineNum][j+3] = calcY(lineNum, xOffs + xRangeMT + 1);
+            } else {
+                bufNext[lineNum][0] = 0;
+                bufNext[lineNum][1] = calcY(lineNum, xOffs);
+                j = 2;
+                int xStop = xOffs + xRange;
+                for (int i = xOffs + 1; i <= xStop; i++) {
+                    if (i > xSize) break;
+                    x = xPts[i - xOffs];
+                    y = calcY(lineNum, i);
+                    bufNext[lineNum][j++] = x;
+                    bufNext[lineNum][j++] = y;
+                    bufNext[lineNum][j++] = x;
+                    bufNext[lineNum][j++] = y;
+                }
+            }
+            prevXOffs = xOffs;
+            prevXRange = xRange;
+        }
+
+        private float calcY(int lineNum, int idx) {
+            float val = yVals[lineNum][idx];
+            if (val > yMax[lineNum])
+                return height;
+            else if (val < yMin[lineNum])
+                return 0;
+            else
+                return (((val - yMin[lineNum]) / yRange[lineNum]) * height);
+        }
     }
 
     private void calcXPts() {

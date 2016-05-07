@@ -2,12 +2,13 @@ package com.gopro.graphtest;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.util.Log;
 
 public class MainActivity extends Activity {
 
     private static final String TAG = "~MainActivity";
 
-    private static final int MAX_SAMPLES = 2000;
+    private static final int MAX_SAMPLES = 20000;
     private static final int DISPLAY_WINDOW = 200;
     private static final int SAMPLE_INTERVAL = 40;
 
@@ -16,8 +17,7 @@ public class MainActivity extends Activity {
     private final float[][] yVals = new float[3][MAX_SAMPLES];
     private int sampleCount = 0;
     private RandomData[] randomData = new RandomData[3];
-    private Thread feedThread;
-    private final boolean feedThreadPaused = false;
+    private DataFeed dataFeed;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,39 +60,66 @@ public class MainActivity extends Activity {
         dataView.setXOffs(0);
         dataView.setXSize(0);
 
-        feedThread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    do {
-                        try {
-                            Thread.sleep(SAMPLE_INTERVAL);
-                        } catch (InterruptedException e) {
-                            return;
-                        }
-                    } while (feedThreadPaused);
-
-                    addNewSample(
-                            randomData[0].getNext(),
-                            randomData[1].getNext(),
-                            randomData[2].getNext());
-
-                }
-            }
-        });
-
+        dataFeed = new DataFeed();
+        dataFeed.start();
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        feedThread.start();
+        dataFeed.pause(false);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
-        feedThread.interrupt();
+        dataFeed.pause(true);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        dataFeed.interrupt();
+        dataView.destroy();
+    }
+
+    private class DataFeed extends Thread {
+        private volatile boolean paused;
+
+        @Override
+        public void run() {
+            while (true) {
+                if (paused) {
+                    synchronized (this) {
+                        try {
+                            wait();
+                        } catch (InterruptedException e) {
+                            Log.i(TAG, "feedThread: Bye!");
+                            e.printStackTrace();
+                            return;
+                        }
+                    }
+                }
+
+                try {
+                    Thread.sleep(SAMPLE_INTERVAL);
+                } catch (InterruptedException e) {
+                    Log.i(TAG, "feedThread: Adios!");
+                    return;
+                }
+
+                addNewSample(
+                        randomData[0].getNext(),
+                        randomData[1].getNext(),
+                        randomData[2].getNext());
+
+            }
+        }
+
+        public synchronized void pause(boolean isPause) {
+            paused = isPause;
+            if (!isPause) this.notify();
+        }
     }
 
     private void addNewSample(float sample0, float sample1, float sample2) {
