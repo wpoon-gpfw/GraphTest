@@ -13,18 +13,20 @@ public class MainActivity extends Activity {
 
     private DataView dataView;
     private ChartView chartView;
-    private float[] yVals = new float[MAX_SAMPLES];
+    private final float[][] yVals = new float[3][MAX_SAMPLES];
     private int sampleCount = 0;
-    private RandomData randomData;
+    private RandomData[] randomData = new RandomData[3];
     private Thread feedThread;
-    private volatile boolean feedThreadPaused = false;
+    private final boolean feedThreadPaused = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        randomData = new RandomData(-1.00F, 1.00F, 0.02F, 1.5F, 0.5F, 15);
+        randomData[0] = new RandomData(-1.00F, 1.00F, 0.02F, 1.8F, 0.4F, 15);
+        randomData[1] = new RandomData(-2.00F, 2.00F, 0.02F, 1.8F, 0.4F, 15);
+        randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.8F, 0.4F, 15);
 
         //initYVals(1F);
 
@@ -42,12 +44,21 @@ public class MainActivity extends Activity {
         }, 100);
 
         dataView = (DataView) findViewById(R.id.dataView);
-        dataView.setYVals(yVals);
+        dataView.setLineColor(0, 0xFFFF0000);
+        dataView.setLineColor(1, 0xFF00FF00);
+        dataView.setLineColor(2, 0xFF0000FF);
+        dataView.enableLine(0, true);
+        dataView.enableLine(1, true);
+        dataView.enableLine(2, true);
+        dataView.setYVals(0, yVals[0]);
+        dataView.setYVals(1, yVals[1]);
+        dataView.setYVals(2, yVals[2]);
+        dataView.setYMinMax(0, -1F, 1F);
+        dataView.setYMinMax(1, -2F, 2F);
+        dataView.setYMinMax(2, -4F, 4F);
         dataView.setXRange(DISPLAY_WINDOW);
         dataView.setXOffs(0);
         dataView.setXSize(0);
-        dataView.setYMin(-1F);
-        dataView.setYMax(1F);
 
         feedThread = new Thread(new Runnable() {
             @Override
@@ -61,30 +72,21 @@ public class MainActivity extends Activity {
                         }
                     } while (feedThreadPaused);
 
-                    addNewSample(randomData.getNext());
+                    addNewSample(
+                            randomData[0].getNext(),
+                            randomData[1].getNext(),
+                            randomData[2].getNext());
+
                 }
             }
         });
-        feedThread.start();
 
-//        (new Handler()).postDelayed(new Runnable() {
-//            @Override
-//            public void run() {
-//                yVals[0] = 0;
-//                dataView.setXOffs(-2);
-//                dataView.update();
-//                yVals[1] = 1;
-//                dataView.setXOffs(-1);
-//                dataView.update();
-//                yVals[2] = 2;
-//                dataView.setXOffs(-0);
-//                dataView.update();
-//                yVals[3] = 3;
-//                dataView.setXOffs(1);
-//                dataView.update();
-//
-//            }
-//        }, 100);
+    }
+
+    @Override
+    protected void onStart() {
+        super.onStart();
+        feedThread.start();
     }
 
     @Override
@@ -93,18 +95,17 @@ public class MainActivity extends Activity {
         feedThread.interrupt();
     }
 
-    private void initYVals(float yMax) {
-        for (int i = 0; i < MAX_SAMPLES; i++) {
-            yVals[i] = (i * yMax) / (MAX_SAMPLES - 1);
-        }
-    }
-
-    private void addNewSample(float sample) {
+    private void addNewSample(float sample0, float sample1, float sample2) {
         //Log.i(TAG, "addNewSample: " + sample);
         if (sampleCount >= MAX_SAMPLES) return;
-        yVals[sampleCount++] = sample;
+        yVals[0][sampleCount] = sample0;
+        yVals[1][sampleCount] = sample1;
+        yVals[2][sampleCount] = sample2;
+        sampleCount++;
+
         dataView.setXOffs(sampleCount - DISPLAY_WINDOW);
         dataView.incUpdate();
+
         chartView.setXOffs(sampleCount - DISPLAY_WINDOW);
         chartView.update();
     }

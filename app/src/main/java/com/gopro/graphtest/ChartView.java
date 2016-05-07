@@ -21,15 +21,17 @@ public class ChartView extends View {
 
 
     private int width, height;
-    private Paint divisionPaint, divTextPaint;
+    private final Paint divisionPaint;
+    private final Paint divTextPaint;
     private float yMin, yMax, yRange;
     private int xRange, xOffs;
     private float xDispScale;
-    private DisplayMetrics displayMetrics;
-    private int dvXOffs, dvYOffs;
+    private final DisplayMetrics displayMetrics;
+    private final int dvXOffs;
+    private final int dvYOffs;
     private int dvWidth, dvHeight;
-    private int marginOffs;
-    private Rect rect = new Rect();
+    private final int marginOffs;
+    private final Rect rect = new Rect();
     private final DecimalFormat yValFormat = new DecimalFormat("0.0E0");
     private final DecimalFormat xValFormat = new DecimalFormat("0.00E0");
 
