@@ -15,7 +15,6 @@ public class ChartView extends View {
 
     private static final String TAG = "~CanvasView";
 
-    private static final int MAX_HORZ_POINTS = 400;
     private static final int NUM_VERT_DIVISIONS = 6;
     private static final int NUM_HORZ_DIVISIONS = 8;
     private static final int DIV_TEXT_SIZE = 16;
