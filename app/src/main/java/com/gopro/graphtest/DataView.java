@@ -15,9 +15,10 @@ public class DataView extends View {
     private int width, height;
     private Paint dataPaint;
     private float[] yVals;
+    private int xSize;
     private float yMin, yMax, yRange;
     private float[] xPts = new float[MAX_HORZ_POINTS];
-    private int xRange, xOffs, prevXOffs;
+    private int xRange, xOffs, prevXRange, prevXOffs;
     private float[][] points = new float[2][MAX_HORZ_POINTS * 4 + 4];
     private float[] bufPrev = points[0];
     private float[] bufNext = points[1];
@@ -54,6 +55,10 @@ public class DataView extends View {
         this.xOffs = (xOffs < 0) ? 0 : xOffs;
     }
 
+    public void setXSize(int xSize) {
+        this.xSize = xSize;
+    }
+
     private void renderLine() {
         int j;
         float x, y;
@@ -62,7 +67,7 @@ public class DataView extends View {
         bufSel = bufSel ^ 0x1;
         bufNext = points[bufSel];
 
-        if (xOffs == prevXOffs + 1) {
+        if (xOffs == prevXOffs + 1 && xRange == prevXRange) {
             /* shift left all prev lines */
             int xRangeMT = xRange - 2;
             j = 0;
@@ -82,6 +87,7 @@ public class DataView extends View {
             j = 2;
             int xStop = xOffs + xRange;
             for (int i = xOffs + 1; i <= xStop; i++) {
+                if (i > xSize) break;
                 x = xPts[i - xOffs];
                 y = calcY(yVals[i]);
                 bufNext[j++] = x;
@@ -91,6 +97,7 @@ public class DataView extends View {
             }
         }
         prevXOffs = xOffs;
+        prevXRange = xRange;
     }
 
     @Override
@@ -106,12 +113,18 @@ public class DataView extends View {
         super.onDraw(canvas);
         canvas.scale(1, -1);
         canvas.translate(0, -height);
-        canvas.drawLines(bufNext, 0, (xRange - 1) << 2, dataPaint);
+        int numLines = (xSize > xRange) ? (xRange - 1) : (xSize - 1);
+        canvas.drawLines(bufNext, 0, numLines << 2, dataPaint);
     }
 
     public void update() {
         renderLine();
         postInvalidate();
+    }
+
+    public void incUpdate() {
+        xSize++;
+        update();
     }
 
     public void setYVals(float[] yVals) {

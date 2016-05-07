@@ -8,7 +8,7 @@ public class MainActivity extends Activity {
     private static final String TAG = "~MainActivity";
 
     private static final int MAX_SAMPLES = 2000;
-    private static final int DISPLAY_WINDOW = 300;
+    private static final int DISPLAY_WINDOW = 200;
     private static final int SAMPLE_INTERVAL = 40;
 
     private DataView dataView;
@@ -45,6 +45,7 @@ public class MainActivity extends Activity {
         dataView.setYVals(yVals);
         dataView.setXRange(DISPLAY_WINDOW);
         dataView.setXOffs(0);
+        dataView.setXSize(0);
         dataView.setYMin(-1F);
         dataView.setYMax(1F);
 
@@ -103,7 +104,7 @@ public class MainActivity extends Activity {
         if (sampleCount >= MAX_SAMPLES) return;
         yVals[sampleCount++] = sample;
         dataView.setXOffs(sampleCount - DISPLAY_WINDOW);
-        dataView.update();
+        dataView.incUpdate();
         chartView.setXOffs(sampleCount - DISPLAY_WINDOW);
         chartView.update();
     }
