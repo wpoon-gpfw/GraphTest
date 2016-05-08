@@ -10,13 +10,13 @@ public class MainActivity extends Activity {
 
     private static final int MAX_SAMPLES = 5000;
     private static final int DISPLAY_WINDOW = 200;
-    private static final int SAMPLE_INTERVAL = 10;
+    private static final int SAMPLE_INTERVAL = 40;
 
     private DataView dataView;
     private ChartView chartView;
     private final float[][] yVals = new float[3][MAX_SAMPLES];
     private int sampleCount = 0;
-    private RandomData[] randomData = new RandomData[3];
+    private final RandomData[] randomData = new RandomData[3];
     private DataFeed dataFeed;
 
     @Override
@@ -27,8 +27,6 @@ public class MainActivity extends Activity {
         randomData[0] = new RandomData(-1.00F, 1.00F, 0.02F, 1.8F, 0.4F, 15);
         randomData[1] = new RandomData(-2.00F, 2.00F, 0.02F, 1.8F, 0.4F, 15);
         randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.8F, 0.4F, 15);
-
-        //initYVals(1F);
 
         chartView = (ChartView) findViewById(R.id.chartView);
         chartView.setXRange(DISPLAY_WINDOW);
@@ -103,12 +101,12 @@ public class MainActivity extends Activity {
                     }
                 }
 
-//                try {
-//                    Thread.sleep(SAMPLE_INTERVAL);
-//                } catch (InterruptedException e) {
-//                    Log.i(TAG, "feedThread: Adios!");
-//                    return;
-//                }
+                try {
+                    Thread.sleep(SAMPLE_INTERVAL);
+                } catch (InterruptedException e) {
+                    Log.i(TAG, "feedThread: Adios!");
+                    return;
+                }
 
                 addNewSample(
                         randomData[0].getNext(),
@@ -131,8 +129,6 @@ public class MainActivity extends Activity {
         yVals[1][sampleCount] = sample1;
         yVals[2][sampleCount] = sample2;
         sampleCount++;
-
-        //dataView.setXOffs(sampleCount - DISPLAY_WINDOW);
         dataView.incUpdate(false);
 
         chartView.setXOffs(sampleCount - DISPLAY_WINDOW);

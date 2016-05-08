@@ -23,19 +23,20 @@ public class DataView extends View {
     private final float[][] yVals = new float[MAX_DATA_LINES][];
     private final float[] yRange = new float[MAX_DATA_LINES];
     private final float[][][] points = new float[MAX_DATA_LINES][2][MAX_HORZ_POINTS * 4 + 4];
-    private final float[][] bufNext = new float[MAX_DATA_LINES][];
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
     private final float[][] bufPrev = new float[MAX_DATA_LINES][];
+    private final float[][] bufNext = new float[MAX_DATA_LINES][];
     private final int[] bufSel = new int[MAX_DATA_LINES];
 
     private int width, height;
     private final float[] xPts = new float[MAX_HORZ_POINTS];
-    private int xSize;
-    private int xRange, xOffs, prevXRange, prevXOffs;
+    private int xSize, xRange, xOffs;
+    private int xSizeDraw, xRangeDraw, xOffsDraw;
     private int lineEnable;
     private boolean changed;
-    private ExecutorService lineRenderSvc;
+    private int prevXRange, prevXOffs;
+    private final ExecutorService lineRenderSvc;
 
     public DataView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -72,11 +73,11 @@ public class DataView extends View {
 
             case MotionEvent.ACTION_MOVE:
             case MotionEvent.ACTION_UP:
-                distX = event.getX() - touchDnX ;
+                distX = event.getX() - touchDnX;
                 //distY = event.getY() - touchDnY ;
                 if ((distX - lastDistX > 10) || (lastDistX - distX > 10)) {
                     lastDistX = distX;
-                    xOffs = touchDnXOffs - (int)((2F * distX * xRange)/width);
+                    xOffs = touchDnXOffs - (int) ((2F * distX * xRange) / width);
                     xOffs = (xOffs < 0) ? 0 : xOffs;
                     changed = true;
                     update(true);
@@ -105,18 +106,16 @@ public class DataView extends View {
         super.onDraw(canvas);
         canvas.scale(1, -1);
         canvas.translate(0, -height);
-        int numLines = (xSize > xRange) ? (xRange - 1) : (xSize - 1);
+
+        int numLines = ((xSizeDraw - xOffsDraw) > xRangeDraw) ?
+                (xRangeDraw - 1) :
+                (xSizeDraw - xOffsDraw - 1);
+        if (numLines <= 0) return;
 
         for (int i = 0; i < MAX_DATA_LINES; i++) {
             if (((1 << i) & lineEnable) == 0) return;
             canvas.drawLines(bufNext[i], 0, numLines << 2, dataPaint[i]);
         }
-    }
-
-    @Override
-    protected void onAttachedToWindow() {
-        super.onAttachedToWindow();
-        Log.i(TAG, "onAttachedToWindow: DataView");
     }
 
     @Override
@@ -178,72 +177,66 @@ public class DataView extends View {
         this.yVals[lineNum] = yVals;
     }
 
-    public synchronized void update(boolean isUI) {
-        for (int i = 0; i < MAX_DATA_LINES; i++) {
-            if (((1 << i) & lineEnable) == 0) return;
-            lineRenderSvc.execute(new LineRenderer(i));
-        }
-
-        if (isUI)
-            invalidate();
-        else
-            postInvalidate();
-    }
-
-    public void incUpdate(boolean isUI) {
-        xSize++;
-        xOffs = xSize - xRange;
-        xOffs = (xOffs < 0) ? 0 : xOffs;
-
-        update(isUI);
-    }
-
     private class LineRenderer implements Runnable {
-        private final int lineNum;
+        private final int xOffs, xRange, xSize;
+        private final boolean changed;
 
-        public LineRenderer(int lineNum) {
-            this.lineNum = lineNum;
+        public LineRenderer(int xOffs, int xRange, int xSize, boolean changed) {
+            this.xOffs = xOffs;
+            this.xRange = xRange;
+            this.xSize = xSize;
+            this.changed = changed;
         }
 
         @Override
         public void run() {
-            int j;
+            int j, xStop;
             float x, y;
 
-            bufPrev[lineNum] = points[lineNum][bufSel[lineNum]];
-            bufSel[lineNum] = bufSel[lineNum] ^ 0x1;
-            bufNext[lineNum] = points[lineNum][bufSel[lineNum]];
+            for (int lineNum = 0; lineNum < MAX_DATA_LINES; lineNum++) {
+                if (((1 << lineNum) & lineEnable) == 0) break;
 
-            if (!changed && xOffs == prevXOffs + 1 && xRange == prevXRange) {
-                /* shift left all prev lines */
-                int xRangeMT = xRange - 2;
-                j = 0;
-                for (int i = 0; i < xRangeMT; i++) {
-                    j = i << 2;
-                    bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 5];
-                    bufNext[lineNum][j + 3] = bufPrev[lineNum][j + 7];
-                }
+                bufPrev[lineNum] = points[lineNum][bufSel[lineNum]];
+                bufSel[lineNum] = bufSel[lineNum] ^ 0x1;
+                bufNext[lineNum] = points[lineNum][bufSel[lineNum]];
 
-                /* add new, last line */
-                j += 4;
-                bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 3];
-                bufNext[lineNum][j + 3] = calcY(lineNum, xOffs + xRangeMT + 1);
-            } else {
-                bufNext[lineNum][0] = 0;
-                bufNext[lineNum][1] = calcY(lineNum, xOffs);
-                j = 2;
-                int xStop = xOffs + xRange;
-                for (int i = xOffs + 1; i <= xStop; i++) {
-                    if (i > xSize) break;
-                    x = xPts[i - xOffs];
-                    y = calcY(lineNum, i);
-                    bufNext[lineNum][j++] = x;
-                    bufNext[lineNum][j++] = y;
-                    bufNext[lineNum][j++] = x;
-                    bufNext[lineNum][j++] = y;
+                if (!changed && xOffs == prevXOffs + 1 && xRange == prevXRange) {
+                    /* shift left all prev lines */
+                    int xRangeMT = xRange - 2;
+                    j = 0;
+                    for (int i = 0; i < xRangeMT; i++) {
+                        j = i << 2;
+                        bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 5];
+                        bufNext[lineNum][j + 3] = bufPrev[lineNum][j + 7];
+                    }
+
+                    /* add new, last line */
+                    j += 4;
+                    bufNext[lineNum][j + 0] = bufPrev[lineNum][j + 0];
+                    bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 3];
+                    bufNext[lineNum][j + 2] = bufPrev[lineNum][j + 2];
+                    bufNext[lineNum][j + 3] = calcY(lineNum, xOffs + xRangeMT + 1);
+                } else {
+                    xStop = xOffs + xRange;
+                    bufNext[lineNum][0] = 0;
+                    bufNext[lineNum][1] = calcY(lineNum, xOffs);
+                    j = 2;
+                    for (int i = xOffs + 1; i <= xStop; i++) {
+                        if (i >= xSize) break;
+                        x = xPts[i - xOffs];
+                        y = calcY(lineNum, i);
+                        bufNext[lineNum][j++] = x;
+                        bufNext[lineNum][j++] = y;
+                        bufNext[lineNum][j++] = x;
+                        bufNext[lineNum][j++] = y;
+                    }
                 }
-                changed = false;
             }
+
+            xOffsDraw = xOffs;
+            xRangeDraw = xRange;
+            xSizeDraw = xSize;
+
             prevXOffs = xOffs;
             prevXRange = xRange;
         }
@@ -257,6 +250,24 @@ public class DataView extends View {
             else
                 return (((val - yMin[lineNum]) / yRange[lineNum]) * height);
         }
+    }
+
+    public synchronized void update(boolean isUI) {
+        lineRenderSvc.execute(new LineRenderer(xOffs, xRange, xSize, changed));
+        changed = false;
+
+        if (isUI)
+            invalidate();
+        else
+            postInvalidate();
+    }
+
+    public void incUpdate(boolean isUI) {
+        xSize++;
+        xOffs = xSize - xRange;
+        xOffs = (xOffs < 0) ? 0 : xOffs;
+
+        update(isUI);
     }
 
     private void calcXPts() {
