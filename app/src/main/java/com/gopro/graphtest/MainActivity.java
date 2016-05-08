@@ -8,9 +8,9 @@ public class MainActivity extends Activity {
 
     private static final String TAG = "~MainActivity";
 
-    private static final int MAX_SAMPLES = 20000;
+    private static final int MAX_SAMPLES = 5000;
     private static final int DISPLAY_WINDOW = 200;
-    private static final int SAMPLE_INTERVAL = 40;
+    private static final int SAMPLE_INTERVAL = 10;
 
     private DataView dataView;
     private ChartView chartView;
@@ -61,11 +61,13 @@ public class MainActivity extends Activity {
         dataView.setXSize(0);
 
         dataFeed = new DataFeed();
+        dataFeed.pause(true);
         dataFeed.start();
     }
 
     @Override
     protected void onStart() {
+        Log.i(TAG, "onStart: MainActivity");
         super.onStart();
         dataFeed.pause(false);
     }
@@ -101,12 +103,12 @@ public class MainActivity extends Activity {
                     }
                 }
 
-                try {
-                    Thread.sleep(SAMPLE_INTERVAL);
-                } catch (InterruptedException e) {
-                    Log.i(TAG, "feedThread: Adios!");
-                    return;
-                }
+//                try {
+//                    Thread.sleep(SAMPLE_INTERVAL);
+//                } catch (InterruptedException e) {
+//                    Log.i(TAG, "feedThread: Adios!");
+//                    return;
+//                }
 
                 addNewSample(
                         randomData[0].getNext(),
@@ -124,14 +126,14 @@ public class MainActivity extends Activity {
 
     private void addNewSample(float sample0, float sample1, float sample2) {
         //Log.i(TAG, "addNewSample: " + sample);
-        if (sampleCount >= MAX_SAMPLES) return;
+        if (sampleCount >= 1000) return;
         yVals[0][sampleCount] = sample0;
         yVals[1][sampleCount] = sample1;
         yVals[2][sampleCount] = sample2;
         sampleCount++;
 
-        dataView.setXOffs(sampleCount - DISPLAY_WINDOW);
-        dataView.incUpdate();
+        //dataView.setXOffs(sampleCount - DISPLAY_WINDOW);
+        dataView.incUpdate(false);
 
         chartView.setXOffs(sampleCount - DISPLAY_WINDOW);
         chartView.update();
