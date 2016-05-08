@@ -10,7 +10,7 @@ public class MainActivity extends Activity {
 
     private static final int MAX_SAMPLES = 5000;
     private static final int DISPLAY_WINDOW = 200;
-    private static final int SAMPLE_INTERVAL = 40;
+    private static final int SAMPLE_INTERVAL = 10;
 
     private DataView dataView;
     private ChartView chartView;
@@ -24,9 +24,9 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        randomData[0] = new RandomData(-1.00F, 1.00F, 0.02F, 1.8F, 0.4F, 15);
-        randomData[1] = new RandomData(-2.00F, 2.00F, 0.02F, 1.8F, 0.4F, 15);
-        randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.8F, 0.4F, 15);
+        randomData[0] = new RandomData(-1.00F, 1.00F, 0.02F, 1.4F, 0.4F, 15);
+        randomData[1] = new RandomData(-2.00F, 2.00F, 0.02F, 1.4F, 0.4F, 15);
+        randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.4F, 0.4F, 15);
 
         chartView = (ChartView) findViewById(R.id.chartView);
         chartView.setXRange(DISPLAY_WINDOW);

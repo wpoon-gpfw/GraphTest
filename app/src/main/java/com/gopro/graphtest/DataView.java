@@ -6,18 +6,24 @@ import android.graphics.Paint;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.ScaleGestureDetector;
 import android.view.View;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class DataView extends View {
+public class DataView extends View implements ScaleGestureDetector.OnScaleGestureListener {
 
     private static final String TAG = "~DataView";
 
-    private static final int MAX_HORZ_POINTS = 301;
+    private static final int MAX_HORZ_POINTS = 1001;
     private static final int MAX_DATA_LINES = 3;
     private static final float DATA_LINE_WIDTH = 4F;
+
+    private static final int CHANGED_XOFF = (1 << 0);
+    private static final int CHANGED_XRANGE = (1 << 1);
+    private static final int CHANGED_YRANGE = (1 << 2);
+
 
     private final Paint[] dataPaint = new Paint[MAX_DATA_LINES];
     private final float[][] yVals = new float[MAX_DATA_LINES][];
@@ -32,11 +38,13 @@ public class DataView extends View {
     private int width, height;
     private final float[] xPts = new float[MAX_HORZ_POINTS];
     private int xSize, xRange, xOffs;
+    private int prevXOffs;
     private int xSizeDraw, xRangeDraw, xOffsDraw;
     private int lineEnable;
-    private boolean changed;
-    private int prevXRange, prevXOffs;
+    private int changed;
+    private boolean pinching;
     private final ExecutorService lineRenderSvc;
+    private ScaleGestureDetector scaleDetector;
 
     public DataView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -53,6 +61,7 @@ public class DataView extends View {
         }
 
         lineRenderSvc = Executors.newSingleThreadExecutor();
+        scaleDetector = new ScaleGestureDetector(context, this);
     }
 
     private float touchDnX, touchDnY, lastDistX;
@@ -61,36 +70,75 @@ public class DataView extends View {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         float distX, distY;
+        boolean retVal;
 
-        int action = event.getActionMasked();
+        retVal = scaleDetector.onTouchEvent(event);
 
-        switch (action) {
-            case MotionEvent.ACTION_DOWN:
-                touchDnX = event.getX();
-                //touchDnY = event.getY();
-                touchDnXOffs = xOffs;
-                return true;
+//        int action = event.getActionMasked();
+//        switch (action) {
+//            case MotionEvent.ACTION_DOWN:
+//                touchDnX = event.getX();
+//                //touchDnY = event.getY();
+//                touchDnXOffs = xOffs;
+//                retVal = true;
+//                break;
+//
+//            case MotionEvent.ACTION_MOVE:
+//            case MotionEvent.ACTION_UP:
+//                distX = event.getX() - touchDnX;
+//                //distY = event.getY() - touchDnY ;
+//                if ((distX - lastDistX > 10) || (lastDistX - distX > 10)) {
+//                    lastDistX = distX;
+//                    xOffs = touchDnXOffs - (int) ((2F * distX * xRange) / width);
+//                    xOffs = (xOffs < 0) ? 0 : xOffs;
+//                    changed |= CHANGED_XOFF;
+//                    update(true);
+//                }
+//                retVal = true;
+//                break;
+//
+//            case MotionEvent.ACTION_CANCEL:
+//                xOffs = touchDnXOffs;
+//                changed |= CHANGED_XOFF;
+//                update(true);
+//                retVal = true;
+//                break;
+//        }
 
-            case MotionEvent.ACTION_MOVE:
-            case MotionEvent.ACTION_UP:
-                distX = event.getX() - touchDnX;
-                //distY = event.getY() - touchDnY ;
-                if ((distX - lastDistX > 10) || (lastDistX - distX > 10)) {
-                    lastDistX = distX;
-                    xOffs = touchDnXOffs - (int) ((2F * distX * xRange) / width);
-                    xOffs = (xOffs < 0) ? 0 : xOffs;
-                    changed = true;
-                    update(true);
-                }
-                return true;
+        return retVal || super.onTouchEvent(event);
+    }
 
-            case MotionEvent.ACTION_CANCEL:
-                xOffs = touchDnXOffs;
-                changed = true;
-                update(true);
-                return true;
-        }
+    private int pinchBeginXRange;
+
+    @Override
+    public boolean onScale(ScaleGestureDetector detector) {
+        float prevSpanX, currSpanX, xScale;
+
+        prevSpanX = detector.getPreviousSpanX();
+        currSpanX = detector.getCurrentSpanX();
+        xScale = 1F + ((prevSpanX / currSpanX) - 1) * 0.5F;
+
+        xRange = (int) (pinchBeginXRange * xScale);
+        xRange = (xRange >= MAX_HORZ_POINTS) ? (MAX_HORZ_POINTS - 1) : xRange;
+        //xOffs -= (detector.getFocusX()/width) * pinchBeginXRange * (1 - 1/xScale);
+        changed |= (CHANGED_XRANGE);
+        update(true);
+
         return false;
+    }
+
+    @Override
+    public boolean onScaleBegin(ScaleGestureDetector detector) {
+        pinchBeginXRange = xRange;
+        pinching = true;
+        return true;
+    }
+
+    @Override
+    public void onScaleEnd(ScaleGestureDetector detector) {
+        Log.i(TAG, "#focusX = " + detector.getFocusX());
+        //onScale(detector);
+        pinching = false;
     }
 
     @Override
@@ -98,7 +146,7 @@ public class DataView extends View {
         super.onSizeChanged(w, h, oldw, oldh);
         width = w;
         height = h;
-        calcXPts();
+        changed |= (CHANGED_XRANGE | CHANGED_YRANGE);
     }
 
     @Override
@@ -143,26 +191,25 @@ public class DataView extends View {
     public void setYMin(int lineNum, float yMin) {
         this.yMin[lineNum] = yMin;
         yRange[lineNum] = this.yMax[lineNum] - this.yMin[lineNum];
-        changed = true;
+        changed |= CHANGED_YRANGE;
     }
 
     public void setYMax(int lineNum, float yMax) {
         this.yMax[lineNum] = yMax;
         yRange[lineNum] = this.yMax[lineNum] - this.yMin[lineNum];
-        changed = true;
+        changed |= CHANGED_YRANGE;
     }
 
     public void setYMinMax(int lineNum, float yMin, float yMax) {
         this.yMin[lineNum] = yMin;
         this.yMax[lineNum] = yMax;
         yRange[lineNum] = this.yMax[lineNum] - this.yMin[lineNum];
-        changed = true;
+        changed |= CHANGED_YRANGE;
     }
 
     public void setXRange(int xRange) {
         this.xRange = xRange;
-        calcXPts();
-        changed = true;
+        changed |= CHANGED_XRANGE;
     }
 
     public void setXOffs(int xOffs) {
@@ -179,9 +226,9 @@ public class DataView extends View {
 
     private class LineRenderer implements Runnable {
         private final int xOffs, xRange, xSize;
-        private final boolean changed;
+        private final int changed;
 
-        public LineRenderer(int xOffs, int xRange, int xSize, boolean changed) {
+        public LineRenderer(int xOffs, int xRange, int xSize, int changed) {
             this.xOffs = xOffs;
             this.xRange = xRange;
             this.xSize = xSize;
@@ -200,7 +247,9 @@ public class DataView extends View {
                 bufSel[lineNum] = bufSel[lineNum] ^ 0x1;
                 bufNext[lineNum] = points[lineNum][bufSel[lineNum]];
 
-                if (!changed && xOffs == prevXOffs + 1 && xRange == prevXRange) {
+                if ((changed & CHANGED_XRANGE) != 0) calcXPts();
+
+                if ((changed == 0) && (xOffs == prevXOffs + 1)) {
                     /* shift left all prev lines */
                     int xRangeMT = xRange - 2;
                     j = 0;
@@ -212,7 +261,7 @@ public class DataView extends View {
 
                     /* add new, last line */
                     j += 4;
-                    bufNext[lineNum][j + 0] = bufPrev[lineNum][j + 0];
+                    bufNext[lineNum][j] = bufPrev[lineNum][j];
                     bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 3];
                     bufNext[lineNum][j + 2] = bufPrev[lineNum][j + 2];
                     bufNext[lineNum][j + 3] = calcY(lineNum, xOffs + xRangeMT + 1);
@@ -238,7 +287,6 @@ public class DataView extends View {
             xSizeDraw = xSize;
 
             prevXOffs = xOffs;
-            prevXRange = xRange;
         }
 
         private float calcY(int lineNum, int idx) {
@@ -254,7 +302,7 @@ public class DataView extends View {
 
     public synchronized void update(boolean isUI) {
         lineRenderSvc.execute(new LineRenderer(xOffs, xRange, xSize, changed));
-        changed = false;
+        changed = 0;
 
         if (isUI)
             invalidate();
