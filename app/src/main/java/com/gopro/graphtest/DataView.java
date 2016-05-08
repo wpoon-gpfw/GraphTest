@@ -28,12 +28,9 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
     private final Paint[] dataPaint = new Paint[MAX_DATA_LINES];
     private final float[][] yVals = new float[MAX_DATA_LINES][];
     private final float[] yRange = new float[MAX_DATA_LINES];
-    private final float[][][] points = new float[MAX_DATA_LINES][2][MAX_HORZ_POINTS * 4 + 4];
+    private final float[][] points = new float[MAX_DATA_LINES][MAX_HORZ_POINTS * 4 + 8];
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
-    private final float[][] bufPrev = new float[MAX_DATA_LINES][];
-    private final float[][] bufNext = new float[MAX_DATA_LINES][];
-    private final int[] bufSel = new int[MAX_DATA_LINES];
 
     private int width, height;
     private final float[] xPts = new float[MAX_HORZ_POINTS];
@@ -50,9 +47,6 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         super(context, attrs);
 
         for (int i = 0; i < MAX_DATA_LINES; i++) {
-            bufPrev[i] = points[i][1];
-            bufNext[i] = points[i][0];
-
             dataPaint[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
             dataPaint[i].setStyle(Paint.Style.STROKE);
             dataPaint[i].setStrokeJoin(Paint.Join.ROUND);
@@ -64,55 +58,68 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         scaleDetector = new ScaleGestureDetector(context, this);
     }
 
-    private float touchDnX, touchDnY, lastDistX;
+    private float touchDnX, lastDistX;
     private int touchDnXOffs;
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        float distX, distY;
+        float distX;
         boolean retVal;
 
         retVal = scaleDetector.onTouchEvent(event);
 
-//        int action = event.getActionMasked();
-//        switch (action) {
-//            case MotionEvent.ACTION_DOWN:
-//                touchDnX = event.getX();
-//                //touchDnY = event.getY();
-//                touchDnXOffs = xOffs;
-//                retVal = true;
-//                break;
-//
-//            case MotionEvent.ACTION_MOVE:
-//            case MotionEvent.ACTION_UP:
-//                distX = event.getX() - touchDnX;
-//                //distY = event.getY() - touchDnY ;
-//                if ((distX - lastDistX > 10) || (lastDistX - distX > 10)) {
-//                    lastDistX = distX;
-//                    xOffs = touchDnXOffs - (int) ((2F * distX * xRange) / width);
-//                    xOffs = (xOffs < 0) ? 0 : xOffs;
-//                    changed |= CHANGED_XOFF;
-//                    update(true);
-//                }
-//                retVal = true;
-//                break;
-//
-//            case MotionEvent.ACTION_CANCEL:
-//                xOffs = touchDnXOffs;
-//                changed |= CHANGED_XOFF;
-//                update(true);
-//                retVal = true;
-//                break;
-//        }
+        int action = event.getActionMasked();
+        switch (action) {
+            case MotionEvent.ACTION_DOWN:
+                if (!pinching) {
+                    //Log.i(TAG, "ACTION_DOWN");
+                    touchDnX = event.getX();
+                    touchDnXOffs = xOffs;
+                    retVal = true;
+                }
+                break;
+
+            case MotionEvent.ACTION_MOVE:
+                if (!pinching) {
+                    //Log.i(TAG, "ACTION_MOVE");
+                    distX = event.getX() - touchDnX;
+                    if ((distX - lastDistX > 10) || (lastDistX - distX > 10)) {
+                        lastDistX = distX;
+                        xOffs = touchDnXOffs - (int) ((2F * distX * xRange) / width);
+                        xOffs = (xOffs < 0) ? 0 : xOffs;
+                        changed |= CHANGED_XOFF;
+                        update(true);
+                    }
+                    retVal = true;
+                }
+                break;
+
+            case MotionEvent.ACTION_UP:
+                //Log.i(TAG, "ACTION_UP");
+                pinching = false;
+                retVal = true;
+                break;
+
+            case MotionEvent.ACTION_CANCEL:
+                //Log.i(TAG, "ACTION_CANCEL");
+                xOffs = touchDnXOffs;
+                changed |= CHANGED_XOFF;
+                update(true);
+                retVal = true;
+                break;
+        }
 
         return retVal || super.onTouchEvent(event);
     }
 
     private int pinchBeginXRange;
+    private int pinchBeginX;
+    private float pinchBeginRatio;
 
     @Override
     public boolean onScale(ScaleGestureDetector detector) {
         float prevSpanX, currSpanX, xScale;
+        //Log.i(TAG, "onScale: ");
 
         prevSpanX = detector.getPreviousSpanX();
         currSpanX = detector.getCurrentSpanX();
@@ -120,7 +127,8 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
         xRange = (int) (pinchBeginXRange * xScale);
         xRange = (xRange >= MAX_HORZ_POINTS) ? (MAX_HORZ_POINTS - 1) : xRange;
-        //xOffs -= (detector.getFocusX()/width) * pinchBeginXRange * (1 - 1/xScale);
+        xOffs = pinchBeginX - (int)(pinchBeginRatio * xRange);
+        xOffs = (xOffs < 0) ? 0 : xOffs;
         changed |= (CHANGED_XRANGE);
         update(true);
 
@@ -129,16 +137,18 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
     @Override
     public boolean onScaleBegin(ScaleGestureDetector detector) {
+        Log.i(TAG, "onScaleBegin: ");
         pinchBeginXRange = xRange;
+        pinchBeginRatio = detector.getFocusX() / width;
+        pinchBeginX = xOffs + (int)(pinchBeginRatio * xRange);
         pinching = true;
         return true;
     }
 
     @Override
     public void onScaleEnd(ScaleGestureDetector detector) {
-        Log.i(TAG, "#focusX = " + detector.getFocusX());
-        //onScale(detector);
-        pinching = false;
+        Log.i(TAG, "onScaleEnd: ");
+        //pinching = false;
     }
 
     @Override
@@ -162,7 +172,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
         for (int i = 0; i < MAX_DATA_LINES; i++) {
             if (((1 << i) & lineEnable) == 0) return;
-            canvas.drawLines(bufNext[i], 0, numLines << 2, dataPaint[i]);
+            canvas.drawLines(points[i], 0, numLines << 2, dataPaint[i]);
         }
     }
 
@@ -243,10 +253,6 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
             for (int lineNum = 0; lineNum < MAX_DATA_LINES; lineNum++) {
                 if (((1 << lineNum) & lineEnable) == 0) break;
 
-                bufPrev[lineNum] = points[lineNum][bufSel[lineNum]];
-                bufSel[lineNum] = bufSel[lineNum] ^ 0x1;
-                bufNext[lineNum] = points[lineNum][bufSel[lineNum]];
-
                 if ((changed & CHANGED_XRANGE) != 0) calcXPts();
 
                 if ((changed == 0) && (xOffs == prevXOffs + 1)) {
@@ -255,29 +261,29 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                     j = 0;
                     for (int i = 0; i < xRangeMT; i++) {
                         j = i << 2;
-                        bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 5];
-                        bufNext[lineNum][j + 3] = bufPrev[lineNum][j + 7];
+                        points[lineNum][j + 1] = points[lineNum][j + 5];
+                        points[lineNum][j + 3] = points[lineNum][j + 7];
                     }
 
                     /* add new, last line */
                     j += 4;
-                    bufNext[lineNum][j] = bufPrev[lineNum][j];
-                    bufNext[lineNum][j + 1] = bufPrev[lineNum][j + 3];
-                    bufNext[lineNum][j + 2] = bufPrev[lineNum][j + 2];
-                    bufNext[lineNum][j + 3] = calcY(lineNum, xOffs + xRangeMT + 1);
+                    points[lineNum][j] = points[lineNum][j];
+                    points[lineNum][j + 1] = points[lineNum][j + 3];
+                    points[lineNum][j + 2] = points[lineNum][j + 2];
+                    points[lineNum][j + 3] = calcY(lineNum, xOffs + xRangeMT + 1);
                 } else {
                     xStop = xOffs + xRange;
-                    bufNext[lineNum][0] = 0;
-                    bufNext[lineNum][1] = calcY(lineNum, xOffs);
+                    points[lineNum][0] = 0;
+                    points[lineNum][1] = calcY(lineNum, xOffs);
                     j = 2;
                     for (int i = xOffs + 1; i <= xStop; i++) {
                         if (i >= xSize) break;
                         x = xPts[i - xOffs];
                         y = calcY(lineNum, i);
-                        bufNext[lineNum][j++] = x;
-                        bufNext[lineNum][j++] = y;
-                        bufNext[lineNum][j++] = x;
-                        bufNext[lineNum][j++] = y;
+                        points[lineNum][j++] = x;
+                        points[lineNum][j++] = y;
+                        points[lineNum][j++] = x;
+                        points[lineNum][j++] = y;
                     }
                 }
             }
