@@ -16,7 +16,8 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
     private static final String TAG = "~DataView";
 
-    private static final int MAX_HORZ_POINTS = 1001;
+    private static final int MAX_HORZ_POINTS = 400;
+    private static final int MIN_XRANGE = 200;
     private static final int MAX_DATA_LINES = 3;
     private static final float DATA_LINE_WIDTH = 4F;
 
@@ -31,12 +32,15 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
     private final float[][] points = new float[MAX_DATA_LINES][MAX_HORZ_POINTS * 4 + 8];
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
+    private final float[] yAbsMin = new float[MAX_DATA_LINES];
+    private final float[] yAbsMax = new float[MAX_DATA_LINES];
 
     private int width, height;
-    private final float[] xPts = new float[MAX_HORZ_POINTS];
-    private int xSize, xRange, xOffs;
+    private final float[] xPts = new float[MAX_HORZ_POINTS + 1];
+    private float xSampFact;
+    private int xSize, xRange, xOffs, xMaxSize;
     private int prevXOffs;
-    private int xSizeDraw, xRangeDraw, xOffsDraw;
+    private int numLinesDraw;
     private int lineEnable;
     private int changed;
     private boolean pinching;
@@ -83,12 +87,13 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                 if (!pinching) {
                     //Log.i(TAG, "ACTION_MOVE");
                     distX = event.getX() - touchDnX;
-                    if ((distX - lastDistX > 10) || (lastDistX - distX > 10)) {
+                    if ((distX - lastDistX > 8) || (lastDistX - distX > 8)) {
                         lastDistX = distX;
-                        xOffs = touchDnXOffs - (int) ((2F * distX * xRange) / width);
+                        xOffs = touchDnXOffs - (int) ((1.5F * distX * xRange) / width);
                         xOffs = (xOffs < 0) ? 0 : xOffs;
                         changed |= CHANGED_XOFF;
-                        update(true);
+                        update();
+                        //Log.i(TAG, String.format("xOffs=%d xRange=%d", xOffs, xRange));
                     }
                     retVal = true;
                 }
@@ -104,7 +109,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                 //Log.i(TAG, "ACTION_CANCEL");
                 xOffs = touchDnXOffs;
                 changed |= CHANGED_XOFF;
-                update(true);
+                update();
                 retVal = true;
                 break;
         }
@@ -112,8 +117,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         return retVal || super.onTouchEvent(event);
     }
 
-    private int pinchBeginXRange;
-    private int pinchBeginX;
+    private int pinchBeginXRange, pinchBeginX;
     private float pinchBeginRatio;
 
     @Override
@@ -126,28 +130,30 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         xScale = 1F + ((prevSpanX / currSpanX) - 1) * 0.5F;
 
         xRange = (int) (pinchBeginXRange * xScale);
-        xRange = (xRange >= MAX_HORZ_POINTS) ? (MAX_HORZ_POINTS - 1) : xRange;
-        xOffs = pinchBeginX - (int)(pinchBeginRatio * xRange);
+        xRange = (xRange < MIN_XRANGE) ? MIN_XRANGE : xRange;
+        xRange = (xRange > xSize + MIN_XRANGE) ? (xSize + MIN_XRANGE) : xRange;
+        xSampFact = (xRange < MAX_HORZ_POINTS) ? 1F : (xRange / (float) MAX_HORZ_POINTS);
+        xOffs = pinchBeginX - (int) (pinchBeginRatio * xRange);
         xOffs = (xOffs < 0) ? 0 : xOffs;
-        changed |= (CHANGED_XRANGE);
-        update(true);
-
+        changed |= (CHANGED_XRANGE | CHANGED_XOFF);
+        update();
+        //Log.i(TAG, String.format("xOffs=%d xRange=%d xSampFact=%f", xOffs, xRange, xSampFact));
         return false;
     }
 
     @Override
     public boolean onScaleBegin(ScaleGestureDetector detector) {
-        Log.i(TAG, "onScaleBegin: ");
+        //Log.i(TAG, "onScaleBegin: ");
         pinchBeginXRange = xRange;
         pinchBeginRatio = detector.getFocusX() / width;
-        pinchBeginX = xOffs + (int)(pinchBeginRatio * xRange);
+        pinchBeginX = xOffs + (int) (pinchBeginRatio * xRange);
         pinching = true;
         return true;
     }
 
     @Override
     public void onScaleEnd(ScaleGestureDetector detector) {
-        Log.i(TAG, "onScaleEnd: ");
+        //Log.i(TAG, "onScaleEnd: ");
         //pinching = false;
     }
 
@@ -165,21 +171,28 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         canvas.scale(1, -1);
         canvas.translate(0, -height);
 
-        int numLines = ((xSizeDraw - xOffsDraw) > xRangeDraw) ?
-                (xRangeDraw - 1) :
-                (xSizeDraw - xOffsDraw - 1);
-        if (numLines <= 0) return;
-
+        if (numLinesDraw <= 0) return;
         for (int i = 0; i < MAX_DATA_LINES; i++) {
             if (((1 << i) & lineEnable) == 0) return;
-            canvas.drawLines(points[i], 0, numLines << 2, dataPaint[i]);
+            //check(points[i], numLinesDraw);
+            canvas.drawLines(points[i], 0, numLinesDraw << 2, dataPaint[i]);
+        }
+    }
+
+    private void check(float[] lines, int numLines) {
+        int j;
+        for (int i = 4; i < numLines; i++) {
+            j = i << 2;
+            if (lines[j] == 0 || lines[j + 2] == 0) {
+                Log.i(TAG, "!!!" + i);
+            }
         }
     }
 
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        Log.i(TAG, "onDetachedFromWindow: DataView");
+        //Log.i(TAG, "onDetachedFromWindow: DataView");
         lineRenderSvc.shutdown();
     }
 
@@ -198,18 +211,6 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         dataPaint[lineNum].setColor(color);
     }
 
-    public void setYMin(int lineNum, float yMin) {
-        this.yMin[lineNum] = yMin;
-        yRange[lineNum] = this.yMax[lineNum] - this.yMin[lineNum];
-        changed |= CHANGED_YRANGE;
-    }
-
-    public void setYMax(int lineNum, float yMax) {
-        this.yMax[lineNum] = yMax;
-        yRange[lineNum] = this.yMax[lineNum] - this.yMin[lineNum];
-        changed |= CHANGED_YRANGE;
-    }
-
     public void setYMinMax(int lineNum, float yMin, float yMax) {
         this.yMin[lineNum] = yMin;
         this.yMax[lineNum] = yMax;
@@ -217,9 +218,16 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         changed |= CHANGED_YRANGE;
     }
 
+    public void setYAbsMinMax(int lineNum, float yAbsMin, float yAbsMax) {
+        this.yAbsMin[lineNum] = yAbsMin;
+        this.yAbsMax[lineNum] = yAbsMax;
+    }
+
     public void setXRange(int xRange) {
+        xRange = (xRange < MIN_XRANGE) ? MIN_XRANGE : xRange;
         this.xRange = xRange;
         changed |= CHANGED_XRANGE;
+        xSampFact = (xRange < MAX_HORZ_POINTS) ? 1F : (xRange / (float) MAX_HORZ_POINTS);
     }
 
     public void setXOffs(int xOffs) {
@@ -230,13 +238,16 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         this.xSize = xSize;
     }
 
+    public void setXMaxSize(int xMaxSize) {
+        this.xMaxSize = xMaxSize;
+    }
+
     public void setYVals(int lineNum, float[] yVals) {
         this.yVals[lineNum] = yVals;
     }
 
     private class LineRenderer implements Runnable {
-        private final int xOffs, xRange, xSize;
-        private final int changed;
+        private final int xOffs, xRange, xSize, changed;
 
         public LineRenderer(int xOffs, int xRange, int xSize, int changed) {
             this.xOffs = xOffs;
@@ -247,17 +258,21 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
         @Override
         public void run() {
-            int j, xStop;
+            int j, numPts;
             float x, y;
+
+            numPts = (int) ((xSize - xOffs) / xSampFact) - 1;
+            numPts = (numPts > xRange) ? xRange : numPts;
+            numPts = (numPts >= MAX_HORZ_POINTS) ? MAX_HORZ_POINTS - 1 : numPts;
 
             for (int lineNum = 0; lineNum < MAX_DATA_LINES; lineNum++) {
                 if (((1 << lineNum) & lineEnable) == 0) break;
 
                 if ((changed & CHANGED_XRANGE) != 0) calcXPts();
 
-                if ((changed == 0) && (xOffs == prevXOffs + 1)) {
+                if (((changed & ~CHANGED_XOFF) == 0) && (xOffs == prevXOffs + 1)) {
                     /* shift left all prev lines */
-                    int xRangeMT = xRange - 2;
+                    int xRangeMT = ((xRange < MAX_HORZ_POINTS) ? xRange : MAX_HORZ_POINTS) - 2;
                     j = 0;
                     for (int i = 0; i < xRangeMT; i++) {
                         j = i << 2;
@@ -272,14 +287,12 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                     points[lineNum][j + 2] = points[lineNum][j + 2];
                     points[lineNum][j + 3] = calcY(lineNum, xOffs + xRangeMT + 1);
                 } else {
-                    xStop = xOffs + xRange;
                     points[lineNum][0] = 0;
                     points[lineNum][1] = calcY(lineNum, xOffs);
                     j = 2;
-                    for (int i = xOffs + 1; i <= xStop; i++) {
-                        if (i >= xSize) break;
-                        x = xPts[i - xOffs];
-                        y = calcY(lineNum, i);
+                    for (int i = 1; i <= numPts; i++) {
+                        x = xPts[i];
+                        y = calcY(lineNum, xOffs + (int) (i * xSampFact));
                         points[lineNum][j++] = x;
                         points[lineNum][j++] = y;
                         points[lineNum][j++] = x;
@@ -288,14 +301,14 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                 }
             }
 
-            xOffsDraw = xOffs;
-            xRangeDraw = xRange;
-            xSizeDraw = xSize;
-
+            numLinesDraw = (numPts < 1) ? 0 : numPts - 1;
+            Log.i(TAG, "numLinesDraw=" + numLinesDraw);
             prevXOffs = xOffs;
+            postInvalidate();
         }
 
         private float calcY(int lineNum, int idx) {
+            if (idx >= xMaxSize) idx = xMaxSize - 1;
             float val = yVals[lineNum][idx];
             if (val > yMax[lineNum])
                 return height;
@@ -306,29 +319,24 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         }
     }
 
-    public synchronized void update(boolean isUI) {
+    public synchronized void update() {
         lineRenderSvc.execute(new LineRenderer(xOffs, xRange, xSize, changed));
         changed = 0;
-
-        if (isUI)
-            invalidate();
-        else
-            postInvalidate();
     }
 
-    public void incUpdate(boolean isUI) {
+    public void incUpdate() {
         xSize++;
         xOffs = xSize - xRange;
         xOffs = (xOffs < 0) ? 0 : xOffs;
 
-        update(isUI);
+        update();
     }
 
     private void calcXPts() {
-        float xRangeMO = xRange - 1;
-        for (int i = 0; i < xRange; i++) {
+        int range = (xRange < MAX_HORZ_POINTS) ? xRange : MAX_HORZ_POINTS;
+        float xRangeMO = range - 1;
+        for (int i = 0; i < range; i++) {
             xPts[i] = (i * width) / xRangeMO;
-            //Log.i(TAG, "xPts = " + xPts[i]);
         }
     }
 

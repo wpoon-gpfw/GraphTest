@@ -24,9 +24,9 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        randomData[0] = new RandomData(-1.00F, 1.00F, 0.02F, 1.4F, 0.4F, 15);
-        randomData[1] = new RandomData(-2.00F, 2.00F, 0.02F, 1.4F, 0.4F, 15);
-        randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.4F, 0.4F, 15);
+        randomData[0] = new RandomData(-1.00F, 1.00F, 0.02F, 1.3F, 0.4F, 15);
+        randomData[1] = new RandomData(-2.00F, 2.00F, 0.02F, 1.3F, 0.4F, 15);
+        randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.3F, 0.4F, 15);
 
         chartView = (ChartView) findViewById(R.id.chartView);
         chartView.setXRange(DISPLAY_WINDOW);
@@ -51,12 +51,16 @@ public class MainActivity extends Activity {
         dataView.setYVals(0, yVals[0]);
         dataView.setYVals(1, yVals[1]);
         dataView.setYVals(2, yVals[2]);
+        dataView.setYAbsMinMax(0, -1F, 1F);
+        dataView.setYAbsMinMax(1, -2F, 2F);
+        dataView.setYAbsMinMax(2, -4F, 4F);
         dataView.setYMinMax(0, -1F, 1F);
         dataView.setYMinMax(1, -2F, 2F);
         dataView.setYMinMax(2, -4F, 4F);
         dataView.setXRange(DISPLAY_WINDOW);
         dataView.setXOffs(0);
         dataView.setXSize(0);
+        dataView.setXMaxSize(MAX_SAMPLES);
 
         dataFeed = new DataFeed();
         dataFeed.pause(true);
@@ -124,12 +128,12 @@ public class MainActivity extends Activity {
 
     private void addNewSample(float sample0, float sample1, float sample2) {
         //Log.i(TAG, "addNewSample: " + sample);
-        if (sampleCount >= 1000) return;
+        if (sampleCount >= 800) return;
         yVals[0][sampleCount] = sample0;
         yVals[1][sampleCount] = sample1;
         yVals[2][sampleCount] = sample2;
         sampleCount++;
-        dataView.incUpdate(false);
+        dataView.incUpdate();
 
         chartView.setXOffs(sampleCount - DISPLAY_WINDOW);
         chartView.update();
