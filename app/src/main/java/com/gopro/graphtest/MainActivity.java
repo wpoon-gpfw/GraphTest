@@ -128,7 +128,7 @@ public class MainActivity extends Activity {
 
     private void addNewSample(float sample0, float sample1, float sample2) {
         //Log.i(TAG, "addNewSample: " + sample);
-        if (sampleCount >= 800) return;
+        if (sampleCount >= 600) return;
         yVals[0][sampleCount] = sample0;
         yVals[1][sampleCount] = sample1;
         yVals[2][sampleCount] = sample2;
