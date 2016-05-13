@@ -32,6 +32,9 @@ public class MainActivity extends Activity {
         chartView.setXRange(DISPLAY_WINDOW);
         chartView.setXOffs(0);
         chartView.setXDispScale(1F / SAMPLE_INTERVAL);
+        chartView.setLineLabel(0, "LINE_RED");
+        chartView.setLineLabel(1, "LINE_GREEN");
+        chartView.setLineLabel(2, "LINE_BLUE");
         chartView.setLineColor(0, 0xFFFF0000);
         chartView.setLineColor(1, 0xFF00FF00);
         chartView.setLineColor(2, 0xFF0000FF);

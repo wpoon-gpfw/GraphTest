@@ -242,11 +242,8 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         this.chartView = chartView;
     }
 
-    public void enableLine(int lineNum, boolean enable) {
-        if (enable)
-            lineEnable |= (1 << lineNum);
-        else
-            lineEnable &= ~(1 << lineNum);
+    public void enableLine(int lineEnable) {
+        this.lineEnable = lineEnable;
     }
 
     public void setLineColor(int lineNum, int color) {

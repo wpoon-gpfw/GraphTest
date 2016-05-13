@@ -21,22 +21,31 @@ public class ChartView extends View {
 
     private static final int NUM_VERT_DIVISIONS = 6;
     private static final int NUM_HORZ_DIVISIONS = 8;
+    private static final int NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
     private static final int DIV_TEXT_SIZE = 12;
     private static final int MARGIN_YAXIS_DP = 45;
     private static final int MARGIN_BOTTOM_DP = 20;
     private static final int MARGIN_DP = 5;
-    private static final int NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
+    private static final int LEGEND_MARKER_RADIUS_DP = 4;
+    private static final int LEGEND_MARGIN_LEFT_DP = 18;
+    private static final int LEGEND_MARGIN_RIGHT_DP = 8;
 
-    private final float[] divisionPts = new float[NUM_DIV_LINES * 4];
     private final Paint divisionPaint;
     private final Paint divTextPaintL, divTextPaintR;
+    private final Paint markerPaint;
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
     private final float[] yRange = new float[MAX_DATA_LINES];
+    private final String[] lineLabels = new String[MAX_DATA_LINES];
+    private final float[] lineLabelsWidth = new float[MAX_DATA_LINES];
+    private final int[] lineColors = new int[MAX_DATA_LINES];
+    private final float[] divisionPts = new float[NUM_DIV_LINES * 4];
     private final DisplayMetrics displayMetrics;
     private final int marginOffs;
+    private final int markerRadius, marginLegendL, marginLegendR;
     private final int dvYOffs;
     private int width, height;
+    private int lineEnable;
     private int xRange, xOffs;
     private float xDispScale;
     private int dvXOffsL, dvXOffsR;
@@ -56,6 +65,10 @@ public class ChartView extends View {
         dvYOffs = dpToPx(MARGIN_BOTTOM_DP);
         marginOffs = dpToPx(MARGIN_DP);
 
+        markerRadius = dpToPx(LEGEND_MARKER_RADIUS_DP);
+        marginLegendL = dpToPx(LEGEND_MARGIN_LEFT_DP);
+        marginLegendR = dpToPx(LEGEND_MARGIN_RIGHT_DP);
+
         dataView = new DataView(context);
         dataView.setChartView(this);
 
@@ -66,7 +79,7 @@ public class ChartView extends View {
         divisionPaint.setStrokeWidth(0F);
 
         divTextPaintL = new Paint(Paint.ANTI_ALIAS_FLAG);
-        divTextPaintL.setColor(0xFF808080);
+        divTextPaintL.setColor(0xFF707070);
         divTextPaintL.setTextSize(dpToPx(DIV_TEXT_SIZE));
 
         divTextPaintR = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -74,6 +87,8 @@ public class ChartView extends View {
         divTextPaintR.setColor(0xFF808080);
         divTextPaintR.setTextSize(dpToPx(DIV_TEXT_SIZE));
 
+        markerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        markerPaint.setStyle(Paint.Style.FILL_AND_STROKE);
     }
 
     @Override
@@ -135,6 +150,7 @@ public class ChartView extends View {
         canvas.drawLines(divisionPts, 0, NUM_DIV_LINES << 2, divisionPaint);
 
         drawHorzDivText(canvas);
+        drawGraphLegend(canvas);
 
         if (dvXOffsL > 0) drawVertDivTextL(canvas);
         if (dvXOffsR > 0) drawVertDivTextR(canvas);
@@ -146,11 +162,22 @@ public class ChartView extends View {
     }
 
     public void enableLine(int lineNum, boolean enable) {
-        dataView.enableLine(lineNum, enable);
+        if (enable)
+            this.lineEnable |= (1 << lineNum);
+        else
+            this.lineEnable &= ~(1 << lineNum);
+        dataView.enableLine(lineEnable);
+    }
+
+    public void setLineLabel(int lineNum, String label) {
+        lineLabels[lineNum] = label;
+        divTextPaintL.getTextBounds(label, 0, label.length(), rect);
+        lineLabelsWidth[lineNum] = rect.width();
     }
 
     public void setLineColor(int lineNum, int color) {
         dataView.setLineColor(lineNum, color);
+        lineColors[lineNum] = color;
     }
 
     public void setYMinMax(int lineNum, float yMin, float yMax) {
@@ -319,6 +346,32 @@ public class ChartView extends View {
                 width - marginOffs,
                 rect.height() + marginOffs,
                 divTextPaintR);
+    }
+
+    private void drawGraphLegend(Canvas canvas) {
+        float posX = dvXOffsL;
+        String text;
+
+        for (int i = 0; i < MAX_DATA_LINES; i++) {
+            if (((1 << i) & lineEnable) == 0) continue;
+
+            markerPaint.setColor(lineColors[i]);
+            canvas.drawCircle(
+                    posX + marginOffs + markerRadius,
+                    dvHeight - marginOffs - markerRadius,
+                    markerRadius,
+                    markerPaint);
+
+            posX += marginLegendL;
+
+            text = lineLabels[i];
+            canvas.drawText(text,
+                    posX,
+                    dvHeight - marginOffs,
+                    divTextPaintL);
+
+            posX += lineLabelsWidth[i] + marginLegendR;
+        }
     }
 
     private int dpToPx(float dp) {
