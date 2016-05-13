@@ -21,9 +21,13 @@ public class ChartView extends View {
 
     private static final int NUM_VERT_DIVISIONS = 6;
     private static final int NUM_HORZ_DIVISIONS = 8;
-    private static final int DIV_TEXT_SIZE = 16;
-    private static final int MARGIN_YAXIS_DP = 60;
+    private static final int DIV_TEXT_SIZE = 12;
+    private static final int MARGIN_YAXIS_DP = 45;
+    private static final int MARGIN_BOTTOM_DP = 20;
+    private static final int MARGIN_DP = 5;
+    private static final int NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
 
+    private final float[] divisionPts = new float[NUM_DIV_LINES * 4];
     private final Paint divisionPaint;
     private final Paint divTextPaintL, divTextPaintR;
     private final float[] yMin = new float[MAX_DATA_LINES];
@@ -49,8 +53,8 @@ public class ChartView extends View {
         super(context, attrs);
 
         displayMetrics = context.getResources().getDisplayMetrics();
-        dvYOffs = dpToPx(40);
-        marginOffs = dpToPx(6);
+        dvYOffs = dpToPx(MARGIN_BOTTOM_DP);
+        marginOffs = dpToPx(MARGIN_DP);
 
         dataView = new DataView(context);
         dataView.setChartView(this);
@@ -59,8 +63,6 @@ public class ChartView extends View {
         divisionPaint.setAntiAlias(false);
         divisionPaint.setColor(0xFFB0B0B0);
         divisionPaint.setStyle(Paint.Style.STROKE);
-        divisionPaint.setStrokeJoin(Paint.Join.MITER);
-        divisionPaint.setStrokeCap(Paint.Cap.BUTT);
         divisionPaint.setStrokeWidth(0F);
 
         divTextPaintL = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -96,15 +98,44 @@ public class ChartView extends View {
         height = h;
         dvWidth = width - dvXOffsL - dvXOffsR;
         dvHeight = height - dvYOffs;
+
+        calcDivisions();
+    }
+
+    private void calcDivisions() {
+        float pos;
+        int j = 0;
+        int k;
+
+        for (int i = 0; i <= NUM_HORZ_DIVISIONS; i++) {
+            pos = (i * dvWidth) / NUM_HORZ_DIVISIONS;
+            j = i << 2;
+            divisionPts[j] = pos + dvXOffsL;
+            divisionPts[j + 1] = 0;
+            divisionPts[j + 2] = pos + dvXOffsL;
+            divisionPts[j + 3] = dvHeight;
+        }
+        k = j + 4;
+        for (int i = 0; i <= NUM_VERT_DIVISIONS; i++) {
+            pos = (i * dvHeight) / NUM_VERT_DIVISIONS;
+            j = (i << 2) + k;
+            divisionPts[j] = dvXOffsL;
+            divisionPts[j + 1] = pos;
+            divisionPts[j + 2] = width - dvXOffsR;
+            divisionPts[j + 3] = pos;
+        }
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
-        canvas.drawRect(0, 0, width, height, divisionPaint);
+        //canvas.drawRect(0, 0, width, height, divisionPaint);
 
-        drawDivisions(canvas);
+        /* Draw Graph Grid */
+        canvas.drawLines(divisionPts, 0, NUM_DIV_LINES << 2, divisionPaint);
+
         drawHorzDivText(canvas);
+
         if (dvXOffsL > 0) drawVertDivTextL(canvas);
         if (dvXOffsR > 0) drawVertDivTextR(canvas);
     }
@@ -175,20 +206,6 @@ public class ChartView extends View {
         if (dataViewLayParams != null) {
             dataViewLayParams.leftMargin = dvXOffsL;
             dataViewLayParams.rightMargin = dvXOffsR;
-        }
-    }
-
-    private void drawDivisions(Canvas canvas) {
-        float pos;
-
-        canvas.drawRect(dvXOffsL, 0, width - dvXOffsR, height - dvYOffs, divisionPaint);
-        for (int i = 1; i < NUM_HORZ_DIVISIONS; i++) {
-            pos = (i * dvWidth) / NUM_HORZ_DIVISIONS;
-            canvas.drawLine(pos + dvXOffsL, 0, pos + dvXOffsL, dvHeight, divisionPaint);
-        }
-        for (int i = 1; i < NUM_VERT_DIVISIONS; i++) {
-            pos = (i * dvHeight) / NUM_VERT_DIVISIONS;
-            canvas.drawLine(dvXOffsL, pos, width - dvXOffsR, pos, divisionPaint);
         }
     }
 
