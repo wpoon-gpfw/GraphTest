@@ -18,25 +18,24 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
     private static final int MAX_HORZ_POINTS = 400;
     private static final int MIN_XRANGE = 200;
     private static final float MIN_YRANGE = 0.1F;
-    private static final int MAX_DATA_LINES = 3;
+    private static final int MAX_DATA_LINES = ChartView.MAX_DATA_LINES;
     private static final float DATA_LINE_WIDTH = 4F;
 
     private static final int CHANGED_XOFF = (1 << 0);
     private static final int CHANGED_XRANGE = (1 << 1);
     private static final int CHANGED_YRANGE = (1 << 2);
 
-
     private final Paint[] dataPaint = new Paint[MAX_DATA_LINES];
     private final float[][] yVals = new float[MAX_DATA_LINES][];
-    private final float[] yRange = new float[MAX_DATA_LINES];
     private final float[][] points = new float[MAX_DATA_LINES][MAX_HORZ_POINTS * 4 + 8];
+    private final float[] yRange = new float[MAX_DATA_LINES];
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
     private final float[] yAbsMin = new float[MAX_DATA_LINES];
     private final float[] yAbsMax = new float[MAX_DATA_LINES];
+    private final float[] xPts = new float[MAX_HORZ_POINTS + 1];
 
     private int width, height;
-    private final float[] xPts = new float[MAX_HORZ_POINTS + 1];
     private float xSampFact;
     private int xSize, xRange, xOffs, xMaxSize;
     private int prevXOffs;
@@ -46,6 +45,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
     private boolean pinching;
     private final ExecutorService lineRenderSvc;
     private ScaleGestureDetector scaleDetector;
+    private ChartView chartView;
 
     public DataView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -235,8 +235,8 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         lineRenderSvc.shutdown();
     }
 
-    public void destroy() {
-        lineRenderSvc.shutdown();
+    public void setChartView(ChartView chartView) {
+        this.chartView = chartView;
     }
 
     public void enableLine(int lineNum, boolean enable) {
@@ -271,6 +271,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
     public void setXOffs(int xOffs) {
         this.xOffs = (xOffs < 0) ? 0 : xOffs;
+        changed |= CHANGED_XOFF;
     }
 
     public void setXSize(int xSize) {
@@ -360,6 +361,15 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
     public synchronized void update() {
         lineRenderSvc.execute(new LineRenderer(xOffs, xRange, xSize, changed));
+        if ((changed & CHANGED_XOFF) != 0) {
+            chartView.updateXOffs(xOffs);
+        }
+        if ((changed & CHANGED_XRANGE) != 0) {
+            chartView.updateXRange(xRange);
+        }
+        if ((changed & CHANGED_YRANGE) != 0) {
+            chartView.updateYMinMaxRange(yMin, yMax, yRange);
+        }
         changed = 0;
     }
 
@@ -367,8 +377,10 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
         xSize++;
         xOffs = xSize - xRange;
         xOffs = (xOffs < 0) ? 0 : xOffs;
+        chartView.updateXOffs(xOffs);
 
-        update();
+        lineRenderSvc.execute(new LineRenderer(xOffs, xRange, xSize, changed));
+        changed = 0;
     }
 
     private void calcXPts() {
