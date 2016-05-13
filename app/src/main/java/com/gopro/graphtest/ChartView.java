@@ -29,10 +29,14 @@ public class ChartView extends View {
     private static final int LEGEND_MARKER_RADIUS_DP = 4;
     private static final int LEGEND_MARGIN_LEFT_DP = 18;
     private static final int LEGEND_MARGIN_RIGHT_DP = 8;
+    private static final int YVAL_SPACING_DP = 60;
+    private static final int YVAL_VERT_MARGIN_DP = 15;
 
     private final Paint divisionPaint;
     private final Paint divTextPaintL, divTextPaintR;
     private final Paint markerPaint;
+    private final Paint yValTextPaint;
+    private volatile float[][] yVals = new float[MAX_DATA_LINES][];
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
     private final float[] yRange = new float[MAX_DATA_LINES];
@@ -43,10 +47,11 @@ public class ChartView extends View {
     private final DisplayMetrics displayMetrics;
     private final int marginOffs;
     private final int markerRadius, marginLegendL, marginLegendR;
+    private final int yValSpacing, yValVertMargin;
     private final int dvYOffs;
     private int width, height;
     private int lineEnable;
-    private int xRange, xOffs;
+    private int xSize, xSizeDisp, xRange, xOffs;
     private float xDispScale;
     private int dvXOffsL, dvXOffsR;
     private int dvWidth, dvHeight;
@@ -69,6 +74,9 @@ public class ChartView extends View {
         marginLegendL = dpToPx(LEGEND_MARGIN_LEFT_DP);
         marginLegendR = dpToPx(LEGEND_MARGIN_RIGHT_DP);
 
+        yValSpacing = dpToPx(YVAL_SPACING_DP);
+        yValVertMargin = dpToPx(YVAL_VERT_MARGIN_DP);
+
         dataView = new DataView(context);
         dataView.setChartView(this);
 
@@ -84,11 +92,14 @@ public class ChartView extends View {
 
         divTextPaintR = new Paint(Paint.ANTI_ALIAS_FLAG);
         divTextPaintR.setTextAlign(Paint.Align.RIGHT);
-        divTextPaintR.setColor(0xFF808080);
+        divTextPaintR.setColor(0xFF707070);
         divTextPaintR.setTextSize(dpToPx(DIV_TEXT_SIZE));
 
         markerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         markerPaint.setStyle(Paint.Style.FILL_AND_STROKE);
+
+        yValTextPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        yValTextPaint.setTextSize(dpToPx(DIV_TEXT_SIZE));
     }
 
     @Override
@@ -151,6 +162,7 @@ public class ChartView extends View {
 
         drawHorzDivText(canvas);
         drawGraphLegend(canvas);
+        drawLastYVal(canvas);
 
         if (dvXOffsL > 0) drawVertDivTextL(canvas);
         if (dvXOffsR > 0) drawVertDivTextR(canvas);
@@ -203,6 +215,8 @@ public class ChartView extends View {
 
     public void setXSize(int xSize) {
         dataView.setXSize(xSize);
+        this.xSize = xSize;
+        this.xSizeDisp = xSize;
     }
 
     public void setXMaxSize(int xMaxSize) {
@@ -211,6 +225,7 @@ public class ChartView extends View {
 
     public void setYVals(int lineNum, float[] yVals) {
         dataView.setYVals(lineNum, yVals);
+        this.yVals[lineNum] = yVals;
     }
 
     public void setXDispScale(float xDispScale) {
@@ -219,10 +234,14 @@ public class ChartView extends View {
 
     public void update() {
         dataView.update();
+        postInvalidate();
     }
 
     public void incUpdate() {
         dataView.incUpdate();
+        xSize++;
+        xSizeDisp++;
+        postInvalidate();
     }
 
     public void setLeftRight(int leftLineNum, int rightLineNum) {
@@ -251,6 +270,11 @@ public class ChartView extends View {
         System.arraycopy(yMax, 0, this.yMax, 0, MAX_DATA_LINES);
         System.arraycopy(yRange, 0, this.yRange, 0, MAX_DATA_LINES);
         postInvalidate();
+    }
+
+    public void updateXSize(int xSize) {
+        this.xSizeDisp = xSize;
+        invalidate();
     }
 
     private void drawHorzDivText(Canvas canvas) {
@@ -371,6 +395,28 @@ public class ChartView extends View {
                     divTextPaintL);
 
             posX += lineLabelsWidth[i] + marginLegendR;
+        }
+    }
+
+    private void drawLastYVal(Canvas canvas) {
+        float posX = dvXOffsL + marginOffs;
+        String text;
+
+        for (int i = 0; i < MAX_DATA_LINES; i++) {
+            if (((1 << i) & lineEnable) == 0) continue;
+
+            yValTextPaint.setColor(lineColors[i]);
+
+            if ((xSizeDisp < 1 || xSizeDisp > xSize))
+                text = "[ - ]";
+            else
+                text = "[ " + yValFormat.format(yVals[i][xSizeDisp - 1]) + " ]";
+
+            canvas.drawText(text,
+                    posX,
+                    yValVertMargin,
+                    yValTextPaint);
+            posX += yValSpacing;
         }
     }
 

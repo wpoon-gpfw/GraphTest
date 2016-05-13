@@ -8,7 +8,7 @@ public class MainActivity extends Activity {
 
     private static final String TAG = "~MainActivity";
 
-    private static final int MAX_SAMPLES = 5000;
+    private static final int MAX_SAMPLES = 1000;
     private static final int DISPLAY_WINDOW = 200;
     private static final int SAMPLE_INTERVAL = 10;
 
@@ -36,7 +36,7 @@ public class MainActivity extends Activity {
         chartView.setLineLabel(1, "LINE_GREEN");
         chartView.setLineLabel(2, "LINE_BLUE");
         chartView.setLineColor(0, 0xFFFF0000);
-        chartView.setLineColor(1, 0xFF00FF00);
+        chartView.setLineColor(1, 0xFF00EF00);
         chartView.setLineColor(2, 0xFF0000FF);
         chartView.enableLine(0, true);
         chartView.enableLine(1, true);

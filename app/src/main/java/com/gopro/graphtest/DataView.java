@@ -102,6 +102,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                     xOffs = touchDnXOffs - (int) ((1.5F * distX * xRange) / width);
                     xOffs = (xOffs < 0) ? 0 : xOffs;
                     changed |= CHANGED_XOFF;
+                    chartView.updateXSize(xOffs + xRange);
                     //Log.i(TAG, String.format("xOffs=%d xRange=%d", xOffs, xRange));
 
                     distY = event.getY() - touchDnY;
