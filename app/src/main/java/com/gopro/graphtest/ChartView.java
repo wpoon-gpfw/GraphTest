@@ -9,6 +9,7 @@ import android.util.DisplayMetrics;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
+import android.widget.FrameLayout;
 
 import java.text.DecimalFormat;
 
@@ -21,24 +22,26 @@ public class ChartView extends View {
     private static final int NUM_VERT_DIVISIONS = 6;
     private static final int NUM_HORZ_DIVISIONS = 8;
     private static final int DIV_TEXT_SIZE = 16;
+    private static final int MARGIN_YAXIS_DP = 60;
 
-    private int width, height;
     private final Paint divisionPaint;
     private final Paint divTextPaintL, divTextPaintR;
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
     private final float[] yRange = new float[MAX_DATA_LINES];
+    private final DisplayMetrics displayMetrics;
+    private final int marginOffs;
+    private final int dvYOffs;
+    private int width, height;
     private int xRange, xOffs;
     private float xDispScale;
-    private final DisplayMetrics displayMetrics;
-    private final int dvXOffsL, dvXOffsR;
-    private final int dvYOffs;
+    private int dvXOffsL, dvXOffsR;
     private int dvWidth, dvHeight;
-    private final int marginOffs;
     private final Rect rect = new Rect();
     private final DecimalFormat yValFormat = new DecimalFormat("0.0E0");
     private final DecimalFormat xValFormat = new DecimalFormat("0.00E0");
     private DataView dataView;
+    private FrameLayout.LayoutParams dataViewLayParams;
 
     private int leftLineNum, rightLineNum;
 
@@ -46,10 +49,11 @@ public class ChartView extends View {
         super(context, attrs);
 
         displayMetrics = context.getResources().getDisplayMetrics();
-        dvXOffsL = dpToPx(60);
-        dvXOffsR = dpToPx(60);
         dvYOffs = dpToPx(40);
         marginOffs = dpToPx(6);
+
+        dataView = new DataView(context);
+        dataView.setChartView(this);
 
         divisionPaint = new Paint();
         divisionPaint.setAntiAlias(false);
@@ -71,6 +75,21 @@ public class ChartView extends View {
     }
 
     @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+
+        dataViewLayParams = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT);
+        dataViewLayParams.leftMargin = dvXOffsL;
+        dataViewLayParams.rightMargin = dvXOffsR;
+        dataViewLayParams.bottomMargin = dvYOffs;
+
+        FrameLayout parent = (FrameLayout) getParent();
+        parent.addView(dataView, dataViewLayParams);
+    }
+
+    @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         width = w;
@@ -86,8 +105,8 @@ public class ChartView extends View {
 
         drawDivisions(canvas);
         drawHorzDivText(canvas);
-        drawVertDivTextL(canvas);
-        drawVertDivTextR(canvas);
+        if (dvXOffsL > 0) drawVertDivTextL(canvas);
+        if (dvXOffsR > 0) drawVertDivTextR(canvas);
     }
 
     @Override
@@ -101,11 +120,6 @@ public class ChartView extends View {
 
     public void setLineColor(int lineNum, int color) {
         dataView.setLineColor(lineNum, color);
-    }
-
-    public void setDataView(DataView dataView) {
-        dataView.setChartView(this);
-        this.dataView = dataView;
     }
 
     public void setYMinMax(int lineNum, float yMin, float yMax) {
@@ -156,6 +170,12 @@ public class ChartView extends View {
     public void setLeftRight(int leftLineNum, int rightLineNum) {
         this.leftLineNum = leftLineNum;
         this.rightLineNum = rightLineNum;
+        dvXOffsL = (leftLineNum < 0) ? 0 : dpToPx(MARGIN_YAXIS_DP);
+        dvXOffsR = (rightLineNum < 0) ? 0 : dpToPx(MARGIN_YAXIS_DP);
+        if (dataViewLayParams != null) {
+            dataViewLayParams.leftMargin = dvXOffsL;
+            dataViewLayParams.rightMargin = dvXOffsR;
+        }
     }
 
     private void drawDivisions(Canvas canvas) {

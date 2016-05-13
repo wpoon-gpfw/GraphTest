@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
         randomData[2] = new RandomData(-4.00F, 4.00F, 0.02F, 1.3F, 0.4F, 15);
 
         chartView = (ChartView) findViewById(R.id.chartView);
-        chartView.setDataView((DataView) findViewById(R.id.dataView));
+        //chartView.setDataView((DataView) findViewById(R.id.dataView));
         chartView.setXRange(DISPLAY_WINDOW);
         chartView.setXOffs(0);
         chartView.setXDispScale(1F / SAMPLE_INTERVAL);

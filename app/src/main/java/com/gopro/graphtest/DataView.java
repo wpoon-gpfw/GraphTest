@@ -43,13 +43,21 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
     private int lineEnable;
     private int changed;
     private boolean pinching;
-    private final ExecutorService lineRenderSvc;
+    private ExecutorService lineRenderSvc;
     private ScaleGestureDetector scaleDetector;
     private ChartView chartView;
 
+    public DataView(Context context) {
+        super(context);
+        init(context);
+    }
+
     public DataView(Context context, AttributeSet attrs) {
         super(context, attrs);
+        init(context);
+    }
 
+    private void init(Context context) {
         for (int i = 0; i < MAX_DATA_LINES; i++) {
             dataPaint[i] = new Paint(Paint.ANTI_ALIAS_FLAG);
             dataPaint[i].setStyle(Paint.Style.STROKE);
@@ -63,7 +71,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
     }
 
     private float touchDnX, touchDnY;
-    private float[] touchDnYMin = new float[MAX_DATA_LINES];
+    private final float[] touchDnYMin = new float[MAX_DATA_LINES];
     private int touchDnXOffs;
 
     @Override
@@ -81,9 +89,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                     touchDnX = event.getX();
                     touchDnXOffs = xOffs;
                     touchDnY = event.getY();
-                    for (int i = 0; i < MAX_DATA_LINES; i++) {
-                        touchDnYMin[i] = yMin[i];
-                    }
+                    System.arraycopy(yMin, 0, touchDnYMin, 0, MAX_DATA_LINES);
                     retVal = true;
                 }
                 break;
@@ -105,12 +111,9 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                         if (yMin[i] < yAbsMin[i]) {
                             yMin[i] = yAbsMin[i];
                             yMax[i] = yMin[i] + yRange[i];
-                            continue;
-                        }
-                        if (yMax[i] > yAbsMax[i]) {
+                        } else if (yMax[i] > yAbsMax[i]) {
                             yMax[i] = yAbsMax[i];
                             yMin[i] = yMax[i] - yRange[i];
-                            continue;
                         }
                     }
                     changed |= CHANGED_YRANGE;
@@ -137,8 +140,8 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
     private int pinchBeginXRange, pinchBeginX;
     private float pinchBeginXRatio;
-    private float[] pinchBeginYRange = new float[MAX_DATA_LINES];
-    private float[] pinchBeginY = new float[MAX_DATA_LINES];
+    private final float[] pinchBeginYRange = new float[MAX_DATA_LINES];
+    private final float[] pinchBeginY = new float[MAX_DATA_LINES];
     private boolean pinchingX;
 
     @Override
