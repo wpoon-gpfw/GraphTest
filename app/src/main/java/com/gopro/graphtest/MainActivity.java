@@ -10,7 +10,7 @@ public class MainActivity extends Activity {
 
     private static final int MAX_SAMPLES = 10000;
     private static final int DISPLAY_WINDOW = 200;
-    private static final int SAMPLE_INTERVAL = 50;
+    private static final int SAMPLE_INTERVAL = 10;
 
     private ChartView chartView;
     private final float[][] yVals = new float[3][MAX_SAMPLES];
@@ -28,7 +28,7 @@ public class MainActivity extends Activity {
         randomData[2] = new RandomData(-2.00F, 2.00F, 0.02F, 1.3F, 0.4F, 15);
 
         chartView = (ChartView) findViewById(R.id.chartView);
-        //chartView.setDataView((DataView) findViewById(R.id.dataView));
+        chartView.setChartName("CHARTVIEW");
         chartView.setXRange(DISPLAY_WINDOW);
         chartView.setXOffs(0);
         chartView.setXDispScale(1F / SAMPLE_INTERVAL);
@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         chartView.enableLine(0, true);
         chartView.enableLine(1, true);
         chartView.enableLine(2, true);
-        chartView.setLeftRight(0, 2);
+        chartView.setLeftRight(2, 1);
         chartView.setYVals(0, yVals[0]);
         chartView.setYVals(1, yVals[1]);
         chartView.setYVals(2, yVals[2]);
@@ -128,7 +128,7 @@ public class MainActivity extends Activity {
 
     private void addNewSample(float sample0, float sample1, float sample2) {
         //Log.i(TAG, "addNewSample: " + sample);
-        if (sampleCount >= 2000) return;
+        if (sampleCount >= 400) return;
         yVals[0][sampleCount] = sample0;
         yVals[1][sampleCount] = sample1;
         yVals[2][sampleCount] = sample2;

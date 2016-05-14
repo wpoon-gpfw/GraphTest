@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Rect;
+import android.graphics.RectF;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -27,15 +28,19 @@ public class ChartView extends View {
     private static int NUM_VERT_DIVISIONS = 5;
     private static int NUM_HORZ_DIVISIONS = 5;
     private static int NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
+
+    private static final int CHARTNAME_TEXT_SIZE = 14;
     private static final int DIV_TEXT_SIZE = 12;
     private static final int MARGIN_YAXIS_DP = 45;
     private static final int MARGIN_BOTTOM_DP = 20;
     private static final int MARGIN_DP = 5;
+    private static final int MARGIN_CHARTNAME_DP = 10;
     private static final int LEGEND_MARKER_RADIUS_DP = 4;
     private static final int LEGEND_MARGIN_LEFT_DP = 18;
     private static final int LEGEND_MARGIN_RIGHT_DP = 8;
-    private static final int YVAL_SPACING_DP = 60;
+    private static final int YVAL_SPACING_DP = 55;
     private static final int YVAL_VERT_MARGIN_DP = 15;
+    private static final int YVAL_STACK_VERT_DP = 280;
 
     private static final int CHANGED_GRID = (1 << 0);
     private static final int CHANGED_YLABELS = (1 << 1);
@@ -43,13 +48,14 @@ public class ChartView extends View {
     private static final int CHANGED_LEGEND = (1 << 3);
     private static final int CHANGED_YVALS = (1 << 4);
 
-    private static final int REFRESH_INTERVAL = 100;
+    //private static final int REFRESH_INTERVAL = 100;
 
+    private final Paint chartNamePaintFG, chartNamePaintBG;
     private final Paint divisionPaint;
     private final Paint divTextPaintL, divTextPaintR;
     private final Paint markerPaint;
     private final Paint yValTextPaint;
-    private volatile float[][] yVals = new float[MAX_DATA_LINES][];
+    private final float[][] yVals = new float[MAX_DATA_LINES][];
     private final float[] yMin = new float[MAX_DATA_LINES];
     private final float[] yMax = new float[MAX_DATA_LINES];
     private final float[] yRange = new float[MAX_DATA_LINES];
@@ -58,23 +64,29 @@ public class ChartView extends View {
     private final int[] lineColors = new int[MAX_DATA_LINES];
     private final float[] divisionPts = new float[MAX_DIV_LINES * 4];
     private final DisplayMetrics displayMetrics;
+    private final int marginChartName;
     private final int marginOffs;
     private final int markerRadius, marginLegendL, marginLegendR;
     private final int yValSpacing, yValVertMargin;
     private final int dvYOffs;
+    private String chartName;
     private int width, height;
     private int lineEnable;
     private int xSize, xRange, xOffs, xRightMost;
     private float xDispScale;
     private int dvXOffsL, dvXOffsR;
     private int dvWidth, dvHeight;
+    private float chartNameHeight;
+    private final Rect chartNameRect = new Rect();
     private final Rect rect = new Rect();
+    private final RectF chartNameRectF = new RectF();
     private final DecimalFormat yValFormat = new DecimalFormat("0.0E0");
     private final DecimalFormat xValFormat = new DecimalFormat("0.00E0");
-    private DataView dataView;
+    private final DataView dataView;
     private FrameLayout.LayoutParams dataViewLayParams;
     private int leftLineNum, rightLineNum;
     private int changed;
+    private boolean yValStackVert;
     //private RefreshThread refreshThread;
 
     public ChartView(Context context, AttributeSet attrs) {
@@ -83,6 +95,8 @@ public class ChartView extends View {
         displayMetrics = context.getResources().getDisplayMetrics();
         dvYOffs = dpToPx(MARGIN_BOTTOM_DP);
         marginOffs = dpToPx(MARGIN_DP);
+
+        marginChartName = dpToPx(MARGIN_CHARTNAME_DP);
 
         markerRadius = dpToPx(LEGEND_MARKER_RADIUS_DP);
         marginLegendL = dpToPx(LEGEND_MARGIN_LEFT_DP);
@@ -93,6 +107,15 @@ public class ChartView extends View {
 
         dataView = new DataView(context);
         dataView.setChartView(this);
+
+        chartNamePaintFG = new Paint(Paint.ANTI_ALIAS_FLAG);
+        chartNamePaintFG.setColor(0xFF000000);
+        chartNamePaintFG.setTextAlign(Paint.Align.RIGHT);
+        chartNamePaintFG.setTextSize(dpToPx(CHARTNAME_TEXT_SIZE));
+
+        chartNamePaintBG = new Paint();
+        chartNamePaintBG.setColor(0xFFE0E0E0);
+        chartNamePaintBG.setStyle(Paint.Style.FILL_AND_STROKE);
 
         divisionPaint = new Paint();
         divisionPaint.setAntiAlias(false);
@@ -105,8 +128,8 @@ public class ChartView extends View {
         divTextPaintL.setTextSize(dpToPx(DIV_TEXT_SIZE));
 
         divTextPaintR = new Paint(Paint.ANTI_ALIAS_FLAG);
-        divTextPaintR.setTextAlign(Paint.Align.RIGHT);
         divTextPaintR.setColor(0xFF707070);
+        divTextPaintR.setTextAlign(Paint.Align.RIGHT);
         divTextPaintR.setTextSize(dpToPx(DIV_TEXT_SIZE));
 
         markerPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -162,6 +185,10 @@ public class ChartView extends View {
         dvWidth = width - dvXOffsL - dvXOffsR;
         dvHeight = height - dvYOffs;
 
+        Log.i(TAG, "dvW = " + pxToDp(dvWidth));
+        yValStackVert = (pxToDp(dvWidth) < YVAL_STACK_VERT_DP);
+
+        calcChartRect();
         calcDivisions();
         changed |= CHANGED_GRID;
     }
@@ -195,9 +222,11 @@ public class ChartView extends View {
         super.onDraw(canvas);
         //canvas.drawRect(0, 0, width, height, divisionPaint);
 
-        /* Draw Graph Grid */
-        if ((changed & CHANGED_GRID) != 0)
+        /* Draw Graph Grid and Chart Name */
+        if ((changed & CHANGED_GRID) != 0) {
             canvas.drawLines(divisionPts, 0, NUM_DIV_LINES << 2, divisionPaint);
+            drawChartName(canvas);
+        }
 
         if ((changed & CHANGED_XLABELS) != 0)
             drawHorzDivText(canvas);
@@ -210,14 +239,26 @@ public class ChartView extends View {
         if ((changed & CHANGED_LEGEND) != 0)
             drawGraphLegend(canvas);
 
-        if ((changed & CHANGED_YVALS) != 0)
-            drawLastYVal(canvas);
+        if ((changed & CHANGED_YVALS) != 0) {
+            if (yValStackVert)
+                drawLastYValVert(canvas);
+            else
+                drawLastYValHorz(canvas);
+
+        }
 
     }
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         return dataView.onTouchEvent(event);
+    }
+
+    public void setChartName(String chartName) {
+        this.chartName = chartName;
+        chartNamePaintFG.getTextBounds(chartName, 0, chartName.length(), chartNameRect);
+        chartNameHeight = chartNameRect.height();
+        calcChartRect();
     }
 
     public void enableLine(int lineNum, boolean enable) {
@@ -301,6 +342,7 @@ public class ChartView extends View {
             dataViewLayParams.rightMargin = dvXOffsR;
         }
 
+        calcChartRect();
         calcDivisions();
         changed |= CHANGED_GRID | CHANGED_YVALS | CHANGED_YLABELS;
     }
@@ -326,6 +368,25 @@ public class ChartView extends View {
         System.arraycopy(yRange, 0, this.yRange, 0, MAX_DATA_LINES);
         changed |= CHANGED_YLABELS;
         chartInvalidate();
+    }
+
+    private void drawChartName(Canvas canvas) {
+        canvas.drawRoundRect(chartNameRectF,
+                marginOffs,
+                marginOffs,
+                chartNamePaintBG);
+
+        canvas.drawText(chartName,
+                width - dvXOffsR - marginChartName,
+                chartNameHeight + marginChartName,
+                chartNamePaintFG);
+    }
+
+    private void calcChartRect() {
+        chartNameRectF.left = width - dvXOffsR - chartNameRect.right - marginChartName - marginOffs;
+        chartNameRectF.top = -chartNameRect.bottom + marginChartName - marginOffs;
+        chartNameRectF.right = width - dvXOffsR - chartNameRect.left - marginChartName + marginOffs;
+        chartNameRectF.bottom = -chartNameRect.top + marginChartName + marginOffs;
     }
 
     private void drawHorzDivText(Canvas canvas) {
@@ -449,10 +510,10 @@ public class ChartView extends View {
         }
     }
 
-    private void drawLastYVal(Canvas canvas) {
+    private void drawLastYValHorz(Canvas canvas) {
         String text;
 
-        float posX = dvXOffsL + marginOffs;
+        float posX = dvXOffsL + marginLegendR;
         int rightMost = (xRightMost > xSize) ? xSize : xRightMost;
 
         for (int i = 0; i < MAX_DATA_LINES; i++) {
@@ -469,7 +530,33 @@ public class ChartView extends View {
                     posX,
                     yValVertMargin,
                     yValTextPaint);
+            //noinspection SuspiciousNameCombination
             posX += yValSpacing;
+        }
+    }
+
+    private void drawLastYValVert(Canvas canvas) {
+        String text;
+
+        float posY = yValVertMargin;
+        int rightMost = (xRightMost > xSize) ? xSize : xRightMost;
+
+        for (int i = 0; i < MAX_DATA_LINES; i++) {
+            if (((1 << i) & lineEnable) == 0) continue;
+
+            yValTextPaint.setColor(lineColors[i]);
+
+            if (rightMost < 1)
+                text = "[ - ]";
+            else
+                text = "[ " + yValFormat.format(yVals[i][rightMost - 1]) + " ]";
+
+            canvas.drawText(text,
+                    dvXOffsL + marginLegendR,
+                    posY,
+                    yValTextPaint);
+            //noinspection SuspiciousNameCombination
+            posY += dvYOffs;
         }
     }
 
@@ -482,7 +569,7 @@ public class ChartView extends View {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, displayMetrics);
     }
 
-    public int pxToDp(int px) {
+    private int pxToDp(int px) {
         return ((160 * px) / displayMetrics.densityDpi);
     }
 
