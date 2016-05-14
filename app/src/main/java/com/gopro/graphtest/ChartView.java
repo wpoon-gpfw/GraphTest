@@ -6,6 +6,7 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
+import android.util.Log;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
@@ -19,9 +20,13 @@ public class ChartView extends View {
 
     private static final String TAG = "~CanvasView";
 
-    private static final int NUM_VERT_DIVISIONS = 6;
-    private static final int NUM_HORZ_DIVISIONS = 8;
-    private static final int NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
+    private static final int MAX_VERT_DIVISIONS = 8;
+    private static final int MAX_HORZ_DIVISIONS = 8;
+    private static final int MAX_DIV_LINES = MAX_VERT_DIVISIONS + MAX_HORZ_DIVISIONS + 2;
+
+    private static int NUM_VERT_DIVISIONS = 5;
+    private static int NUM_HORZ_DIVISIONS = 5;
+    private static int NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
     private static final int DIV_TEXT_SIZE = 12;
     private static final int MARGIN_YAXIS_DP = 45;
     private static final int MARGIN_BOTTOM_DP = 20;
@@ -31,6 +36,14 @@ public class ChartView extends View {
     private static final int LEGEND_MARGIN_RIGHT_DP = 8;
     private static final int YVAL_SPACING_DP = 60;
     private static final int YVAL_VERT_MARGIN_DP = 15;
+
+    private static final int CHANGED_GRID = (1 << 0);
+    private static final int CHANGED_YLABELS = (1 << 1);
+    private static final int CHANGED_XLABELS = (1 << 2);
+    private static final int CHANGED_LEGEND = (1 << 3);
+    private static final int CHANGED_YVALS = (1 << 4);
+
+    private static final int REFRESH_INTERVAL = 100;
 
     private final Paint divisionPaint;
     private final Paint divTextPaintL, divTextPaintR;
@@ -43,7 +56,7 @@ public class ChartView extends View {
     private final String[] lineLabels = new String[MAX_DATA_LINES];
     private final float[] lineLabelsWidth = new float[MAX_DATA_LINES];
     private final int[] lineColors = new int[MAX_DATA_LINES];
-    private final float[] divisionPts = new float[NUM_DIV_LINES * 4];
+    private final float[] divisionPts = new float[MAX_DIV_LINES * 4];
     private final DisplayMetrics displayMetrics;
     private final int marginOffs;
     private final int markerRadius, marginLegendL, marginLegendR;
@@ -51,7 +64,7 @@ public class ChartView extends View {
     private final int dvYOffs;
     private int width, height;
     private int lineEnable;
-    private int xSize, xSizeDisp, xRange, xOffs;
+    private int xSize, xRange, xOffs, xRightMost;
     private float xDispScale;
     private int dvXOffsL, dvXOffsR;
     private int dvWidth, dvHeight;
@@ -60,8 +73,9 @@ public class ChartView extends View {
     private final DecimalFormat xValFormat = new DecimalFormat("0.00E0");
     private DataView dataView;
     private FrameLayout.LayoutParams dataViewLayParams;
-
     private int leftLineNum, rightLineNum;
+    private int changed;
+    //private RefreshThread refreshThread;
 
     public ChartView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -104,7 +118,11 @@ public class ChartView extends View {
 
     @Override
     protected void onAttachedToWindow() {
+        Log.i(TAG, "onAttachedToWindow: RAN!");
         super.onAttachedToWindow();
+
+        //refreshThread = new RefreshThread(REFRESH_INTERVAL);
+        //refreshThread.start();
 
         dataViewLayParams = new FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
@@ -118,14 +136,34 @@ public class ChartView extends View {
     }
 
     @Override
+    protected void onDetachedFromWindow() {
+        Log.i(TAG, "onDetachedFromWindow: RAN!");
+        super.onDetachedFromWindow();
+
+        //refreshThread.interrupt();
+        //refreshThread = null;
+    }
+
+    @Override
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
+        Log.i(TAG, "W = " + pxToDp(w) + " H = " + pxToDp(h));
+
+        NUM_HORZ_DIVISIONS = pxToDp(w) / 80;
+        if (NUM_HORZ_DIVISIONS > MAX_HORZ_DIVISIONS) NUM_HORZ_DIVISIONS = MAX_HORZ_DIVISIONS;
+        NUM_VERT_DIVISIONS = pxToDp(h) / 60;
+        if (NUM_VERT_DIVISIONS > MAX_VERT_DIVISIONS) NUM_VERT_DIVISIONS = MAX_VERT_DIVISIONS;
+        Log.i(TAG, "HD = " + NUM_HORZ_DIVISIONS + " VD = " + NUM_VERT_DIVISIONS);
+
+        NUM_DIV_LINES = NUM_HORZ_DIVISIONS + NUM_VERT_DIVISIONS + 2;
+
         width = w;
         height = h;
         dvWidth = width - dvXOffsL - dvXOffsR;
         dvHeight = height - dvYOffs;
 
         calcDivisions();
+        changed |= CHANGED_GRID;
     }
 
     private void calcDivisions() {
@@ -158,14 +196,23 @@ public class ChartView extends View {
         //canvas.drawRect(0, 0, width, height, divisionPaint);
 
         /* Draw Graph Grid */
-        canvas.drawLines(divisionPts, 0, NUM_DIV_LINES << 2, divisionPaint);
+        if ((changed & CHANGED_GRID) != 0)
+            canvas.drawLines(divisionPts, 0, NUM_DIV_LINES << 2, divisionPaint);
 
-        drawHorzDivText(canvas);
-        drawGraphLegend(canvas);
-        drawLastYVal(canvas);
+        if ((changed & CHANGED_XLABELS) != 0)
+            drawHorzDivText(canvas);
 
-        if (dvXOffsL > 0) drawVertDivTextL(canvas);
-        if (dvXOffsR > 0) drawVertDivTextR(canvas);
+        if ((changed & CHANGED_YLABELS) != 0) {
+            if ((dvXOffsL > 0)) drawVertDivTextL(canvas);
+            if ((dvXOffsR > 0)) drawVertDivTextR(canvas);
+        }
+
+        if ((changed & CHANGED_LEGEND) != 0)
+            drawGraphLegend(canvas);
+
+        if ((changed & CHANGED_YVALS) != 0)
+            drawLastYVal(canvas);
+
     }
 
     @Override
@@ -185,11 +232,13 @@ public class ChartView extends View {
         lineLabels[lineNum] = label;
         divTextPaintL.getTextBounds(label, 0, label.length(), rect);
         lineLabelsWidth[lineNum] = rect.width();
+        changed |= CHANGED_LEGEND;
     }
 
     public void setLineColor(int lineNum, int color) {
         dataView.setLineColor(lineNum, color);
         lineColors[lineNum] = color;
+        changed |= CHANGED_LEGEND;
     }
 
     public void setYMinMax(int lineNum, float yMin, float yMax) {
@@ -216,7 +265,6 @@ public class ChartView extends View {
     public void setXSize(int xSize) {
         dataView.setXSize(xSize);
         this.xSize = xSize;
-        this.xSizeDisp = xSize;
     }
 
     public void setXMaxSize(int xMaxSize) {
@@ -234,14 +282,13 @@ public class ChartView extends View {
 
     public void update() {
         dataView.update();
-        postInvalidate();
+        changed = 0xFF;
+        chartInvalidate();
     }
 
     public void incUpdate() {
         dataView.incUpdate();
         xSize++;
-        xSizeDisp++;
-        postInvalidate();
     }
 
     public void setLeftRight(int leftLineNum, int rightLineNum) {
@@ -253,28 +300,32 @@ public class ChartView extends View {
             dataViewLayParams.leftMargin = dvXOffsL;
             dataViewLayParams.rightMargin = dvXOffsR;
         }
+
+        calcDivisions();
+        changed |= CHANGED_GRID | CHANGED_YVALS | CHANGED_YLABELS;
     }
 
-    public void updateXRange(int xRange) {
+    public void updateXRangeXOffs(int xRange, int xOffs) {
         this.xRange = xRange;
-        postInvalidate();
+        this.xOffs = xOffs;
+        xRightMost = xOffs + xRange;
+        changed |= CHANGED_XLABELS | CHANGED_YVALS;
+        chartInvalidate();
     }
 
     public void updateXOffs(int xOffs) {
-        this.xOffs = (xOffs < 0) ? 0 : xOffs;
-        postInvalidate();
+        this.xOffs = xOffs;
+        xRightMost = xOffs + xRange;
+        changed |= CHANGED_XLABELS | CHANGED_YVALS;
+        chartInvalidate();
     }
 
     public void updateYMinMaxRange(float[] yMin, float[] yMax, float[] yRange) {
         System.arraycopy(yMin, 0, this.yMin, 0, MAX_DATA_LINES);
         System.arraycopy(yMax, 0, this.yMax, 0, MAX_DATA_LINES);
         System.arraycopy(yRange, 0, this.yRange, 0, MAX_DATA_LINES);
-        postInvalidate();
-    }
-
-    public void updateXSize(int xSize) {
-        this.xSizeDisp = xSize;
-        invalidate();
+        changed |= CHANGED_YLABELS;
+        chartInvalidate();
     }
 
     private void drawHorzDivText(Canvas canvas) {
@@ -399,18 +450,20 @@ public class ChartView extends View {
     }
 
     private void drawLastYVal(Canvas canvas) {
-        float posX = dvXOffsL + marginOffs;
         String text;
+
+        float posX = dvXOffsL + marginOffs;
+        int rightMost = (xRightMost > xSize) ? xSize : xRightMost;
 
         for (int i = 0; i < MAX_DATA_LINES; i++) {
             if (((1 << i) & lineEnable) == 0) continue;
 
             yValTextPaint.setColor(lineColors[i]);
 
-            if ((xSizeDisp < 1 || xSizeDisp > xSize))
+            if (rightMost < 1)
                 text = "[ - ]";
             else
-                text = "[ " + yValFormat.format(yVals[i][xSizeDisp - 1]) + " ]";
+                text = "[ " + yValFormat.format(yVals[i][rightMost - 1]) + " ]";
 
             canvas.drawText(text,
                     posX,
@@ -420,8 +473,51 @@ public class ChartView extends View {
         }
     }
 
+    private void chartInvalidate() {
+        //if (refreshThread != null) refreshThread.refresh();
+        postInvalidate();
+    }
+
     private int dpToPx(float dp) {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, displayMetrics);
+    }
+
+    public int pxToDp(int px) {
+        return ((160 * px) / displayMetrics.densityDpi);
+    }
+
+    private class RefreshThread extends Thread {
+        private final int interval;
+
+        public RefreshThread(int refreshInterval) {
+            interval = refreshInterval;
+        }
+
+        @Override
+        public void run() {
+            while (true) {
+                synchronized (this) {
+                    try {
+                        wait();
+                    } catch (InterruptedException e) {
+                        Log.i(TAG, "feedThread: Bye!");
+                        return;
+                    }
+
+                }
+                postInvalidate();
+                try {
+                    Thread.sleep(interval);
+                } catch (InterruptedException e) {
+                    Log.i(TAG, "feedThread: Adios!");
+                    return;
+                }
+            }
+        }
+
+        public synchronized void refresh() {
+            notify();
+        }
     }
 
 }

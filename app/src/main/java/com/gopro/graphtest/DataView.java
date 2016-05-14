@@ -102,7 +102,7 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
                     xOffs = touchDnXOffs - (int) ((1.5F * distX * xRange) / width);
                     xOffs = (xOffs < 0) ? 0 : xOffs;
                     changed |= CHANGED_XOFF;
-                    chartView.updateXSize(xOffs + xRange);
+                    chartView.updateXOffs(xOffs);
                     //Log.i(TAG, String.format("xOffs=%d xRange=%d", xOffs, xRange));
 
                     distY = event.getY() - touchDnY;
@@ -362,19 +362,16 @@ public class DataView extends View implements ScaleGestureDetector.OnScaleGestur
 
     public synchronized void update() {
         lineRenderSvc.execute(new LineRenderer(xOffs, xRange, xSize, changed));
-        if ((changed & CHANGED_XOFF) != 0) {
-            chartView.updateXOffs(xOffs);
-        }
-        if ((changed & CHANGED_XRANGE) != 0) {
-            chartView.updateXRange(xRange);
+        changed = 0;
+        if ((changed & (CHANGED_XOFF | CHANGED_XRANGE)) != 0) {
+            chartView.updateXRangeXOffs(xRange, xOffs);
         }
         if ((changed & CHANGED_YRANGE) != 0) {
             chartView.updateYMinMaxRange(yMin, yMax, yRange);
         }
-        changed = 0;
     }
 
-    public void incUpdate() {
+    public synchronized void incUpdate() {
         xSize++;
         xOffs = xSize - xRange;
         xOffs = (xOffs < 0) ? 0 : xOffs;
